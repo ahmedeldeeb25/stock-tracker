@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(sqlite3:*)",
+      "Bash(pip3 install:*)",
+      "Bash(source venv/bin/activate)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(source ../venv/bin/activate)",
+      "Bash(PYTHONPATH=/Users/aeldeeb/Ahmed/git/stock-tracker timeout 5 python:*)",
+      "Bash(chmod:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(pkill:*)",
+      "Bash(./test_flask.sh:*)",
+      "Bash(/Users/aeldeeb/Ahmed/git/stock-tracker/test_flask.sh)",
+      "Bash(find:*)",
+      "Bash(/Users/aeldeeb/Ahmed/git/stock-tracker/fresh_start.sh)",
+      "Bash(brew upgrade:*)",
+      "Bash(npm install:*)",
+      "Bash(ln:*)",
+      "Bash(ls:*)",
+      "Bash(kill:*)",
+      "Bash(grep:*)"
+    ]
+  }
+}

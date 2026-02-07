@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.stocktracker</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/python3</string>
+        <string>ABSOLUTE_PATH_TO_PROJECT/daemon.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>ABSOLUTE_PATH_TO_PROJECT</string>
+
+    <key>StandardOutPath</key>
+    <string>ABSOLUTE_PATH_TO_PROJECT/stock_tracker.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>ABSOLUTE_PATH_TO_PROJECT/stock_tracker_error.log</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>

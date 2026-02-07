@@ -1,0 +1,423 @@
+"""Stocks API routes."""
+
+from flask import Blueprint, request, jsonify, current_app
+import logging
+
+logger = logging.getLogger(__name__)
+
+stocks_bp = Blueprint('stocks', __name__)
+
+
+@stocks_bp.route('', methods=['GET'])
+def get_stocks():
+    """Get all stocks with optional filters.
+
+    Query Params:
+        tag: Filter by tag name
+        search: Search in symbol or company name
+        include_prices: Include current prices (default: false)
+    """
+    try:
+        tag = request.args.get('tag')
+        search = request.args.get('search')
+        include_prices = request.args.get('include_prices', 'false').lower() == 'true'
+
+        stocks = current_app.stock_service.get_all_stocks_with_details(
+            tag=tag,
+            search=search,
+            include_prices=include_prices
+        )
+
+        # Get all available tags with counts
+        tags_with_counts = current_app.db_manager.get_all_tags()
+        available_tags = [
+            {"id": tag.id, "name": tag.name, "color": tag.color, "count": count}
+            for tag, count in tags_with_counts
+        ]
+
+        return jsonify({
+            "stocks": stocks,
+            "total": len(stocks),
+            "available_tags": available_tags
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching stocks: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<symbol>', methods=['GET'])
+def get_stock(symbol):
+    """Get single stock with full details."""
+    try:
+        stock = current_app.stock_service.get_stock_with_details(symbol, include_price=True)
+
+        if not stock:
+            return jsonify({"error": f"Stock {symbol} not found"}), 404
+
+        # Get alert history
+        stock_obj = current_app.db_manager.get_stock_by_symbol(symbol)
+        if stock_obj:
+            alerts = current_app.db_manager.get_alert_history(stock_id=stock_obj.id, limit=10)
+            stock["alert_history"] = [
+                {
+                    "id": alert.id,
+                    "target_type": alert.target_type,
+                    "current_price": alert.current_price,
+                    "target_price": alert.target_price,
+                    "alert_note": alert.alert_note,
+                    "email_sent": alert.email_sent,
+                    "triggered_at": alert.triggered_at.isoformat() if alert.triggered_at else None
+                }
+                for alert in alerts
+            ]
+
+        return jsonify(stock)
+
+    except Exception as e:
+        logger.error(f"Error fetching stock {symbol}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('', methods=['POST'])
+def create_stock():
+    """Create a new stock with targets and tags.
+
+    Body:
+        {
+            "symbol": "NVDA",
+            "company_name": "NVIDIA Corporation",
+            "targets": [
+                {
+                    "target_type": "Buy",
+                    "target_price": 800.00,
+                    "alert_note": "Good entry point",
+                    "trim_percentage": null
+                }
+            ],
+            "tags": ["tech", "AI"]
+        }
+    """
+    try:
+        data = request.get_json()
+
+        if not data.get('symbol'):
+            return jsonify({"error": "Symbol is required"}), 400
+
+        if not data.get('targets'):
+            return jsonify({"error": "At least one target is required"}), 400
+
+        result = current_app.stock_service.create_stock_with_targets(
+            symbol=data['symbol'],
+            company_name=data.get('company_name'),
+            targets=data['targets'],
+            tags=data.get('tags', [])
+        )
+
+        # Fetch full details to return
+        stock = current_app.stock_service.get_stock_with_details(data['symbol'])
+
+        return jsonify(stock), 201
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error creating stock: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>', methods=['PUT'])
+def update_stock(stock_id):
+    """Update stock information.
+
+    Body:
+        {
+            "company_name": "Updated Name"
+        }
+    """
+    try:
+        data = request.get_json()
+
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        success = current_app.db_manager.update_stock(
+            stock_id=stock_id,
+            company_name=data.get('company_name')
+        )
+
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Failed to update stock"}), 500
+
+    except Exception as e:
+        logger.error(f"Error updating stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>', methods=['DELETE'])
+def delete_stock(stock_id):
+    """Delete a stock and all related data."""
+    try:
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        success = current_app.db_manager.delete_stock(stock_id)
+
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Failed to delete stock"}), 500
+
+    except Exception as e:
+        logger.error(f"Error deleting stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>/fetch-info', methods=['POST'])
+def fetch_stock_info(stock_id):
+    """Fetch and update company information from yfinance.
+
+    Body: (optional)
+        {
+            "force": true/false  # Force refetch even if name exists
+        }
+    """
+    try:
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        data = request.get_json() or {}
+        force = data.get('force', False)
+
+        # Check if we need to fetch
+        if stock.company_name and not force:
+            return jsonify({
+                "company_name": stock.company_name,
+                "message": "Company name already exists"
+            })
+
+        # Fetch company info
+        company_info = current_app.stock_fetcher.get_company_info(stock.symbol)
+
+        if not company_info or not company_info.get('name'):
+            return jsonify({"error": "Could not fetch company information"}), 404
+
+        # Update stock
+        company_name = company_info['name']
+        current_app.db_manager.update_stock(stock_id, company_name=company_name)
+
+        return jsonify({
+            "company_name": company_name,
+            "success": True,
+            "message": "Company information updated"
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching info for stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>/targets', methods=['GET'])
+def get_stock_targets(stock_id):
+    """Get all targets for a stock."""
+    try:
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        targets = current_app.db_manager.get_targets_for_stock(stock_id)
+
+        return jsonify({
+            "targets": [
+                {
+                    "id": t.id,
+                    "target_type": t.target_type,
+                    "target_price": t.target_price,
+                    "trim_percentage": t.trim_percentage,
+                    "alert_note": t.alert_note,
+                    "is_active": t.is_active,
+                    "created_at": t.created_at.isoformat() if t.created_at else None
+                }
+                for t in targets
+            ]
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching targets for stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>/targets', methods=['POST'])
+def add_stock_target(stock_id):
+    """Add a new target to a stock.
+
+    Body:
+        {
+            "target_type": "Sell",
+            "target_price": 250.00,
+            "alert_note": "Take profits",
+            "trim_percentage": 25
+        }
+    """
+    try:
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        data = request.get_json()
+
+        if not data.get('target_type') or not data.get('target_price'):
+            return jsonify({"error": "target_type and target_price are required"}), 400
+
+        target_id = current_app.db_manager.create_target(
+            stock_id=stock_id,
+            target_type=data['target_type'],
+            target_price=data['target_price'],
+            trim_percentage=data.get('trim_percentage'),
+            alert_note=data.get('alert_note')
+        )
+
+        return jsonify({"id": target_id, "success": True}), 201
+
+    except Exception as e:
+        logger.error(f"Error adding target to stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>/tags', methods=['POST'])
+def add_stock_tag(stock_id):
+    """Add a tag to a stock.
+
+    Body:
+        {
+            "tag_id": 3
+        }
+    """
+    try:
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        data = request.get_json()
+        tag_id = data.get('tag_id')
+
+        if not tag_id:
+            return jsonify({"error": "tag_id is required"}), 400
+
+        success = current_app.db_manager.add_tag_to_stock(stock_id, tag_id)
+
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Tag already added or doesn't exist"}), 400
+
+    except Exception as e:
+        logger.error(f"Error adding tag to stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>/tags/<int:tag_id>', methods=['DELETE'])
+def remove_stock_tag(stock_id, tag_id):
+    """Remove a tag from a stock."""
+    try:
+        success = current_app.db_manager.remove_tag_from_stock(stock_id, tag_id)
+
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Tag not found on stock"}), 404
+
+    except Exception as e:
+        logger.error(f"Error removing tag from stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>/notes', methods=['GET'])
+def get_stock_notes(stock_id):
+    """Get all notes for a stock."""
+    try:
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        limit = request.args.get('limit', type=int)
+        notes = current_app.db_manager.get_notes_for_stock(stock_id, limit=limit)
+
+        return jsonify({
+            "notes": [
+                {
+                    "id": n.id,
+                    "title": n.title,
+                    "content": n.content,
+                    "note_date": n.note_date.isoformat() if n.note_date else None,
+                    "created_at": n.created_at.isoformat() if n.created_at else None,
+                    "updated_at": n.updated_at.isoformat() if n.updated_at else None
+                }
+                for n in notes
+            ]
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching notes for stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>/notes', methods=['POST'])
+def add_stock_note(stock_id):
+    """Add a new note to a stock.
+
+    Body:
+        {
+            "title": "Q4 Earnings",
+            "content": "Strong results...",
+            "note_date": "2026-02-07"
+        }
+    """
+    try:
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        data = request.get_json()
+
+        if not data.get('title') or not data.get('content') or not data.get('note_date'):
+            return jsonify({"error": "title, content, and note_date are required"}), 400
+
+        from datetime import date
+        note_date = date.fromisoformat(data['note_date'])
+
+        note_id = current_app.db_manager.create_note(
+            stock_id=stock_id,
+            title=data['title'],
+            content=data['content'],
+            note_date=note_date
+        )
+
+        return jsonify({"id": note_id, "success": True}), 201
+
+    except ValueError as e:
+        return jsonify({"error": f"Invalid date format: {e}"}), 400
+    except Exception as e:
+        logger.error(f"Error adding note to stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>/status', methods=['GET'])
+def get_stock_status(stock_id):
+    """Get stock status with current price and alert status."""
+    try:
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        stock_data = current_app.stock_service.get_stock_status(stock.symbol)
+        return jsonify(stock_data)
+
+    except Exception as e:
+        logger.error(f"Error fetching stock status {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
