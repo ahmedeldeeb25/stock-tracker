@@ -148,6 +148,11 @@ class StockService:
             if after_hours:
                 result["after_hours"] = after_hours
 
+            # Fetch fundamental data
+            fundamental_data = self.fetcher.get_fundamental_data(stock.symbol)
+            if fundamental_data:
+                result["fundamental_data"] = fundamental_data
+
         return result
 
     def get_all_stocks_with_details(self, tag: Optional[str] = None, search: Optional[str] = None,

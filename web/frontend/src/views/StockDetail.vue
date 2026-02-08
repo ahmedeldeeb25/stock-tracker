@@ -125,48 +125,72 @@
       </div>
 
       <div class="row">
-        <!-- Left Column: Chart, Targets & Alerts - Responsive col-md-8 -->
+        <!-- Left Column: Chart, Fundamental Data, Targets & Alerts - Responsive col-md-8 -->
         <div class="col-md-8">
           <!-- TradingView Chart -->
-          <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">
-                <i class="bi bi-graph-up me-2"></i>
-                Chart
-              </h5>
+          <CollapsibleCard
+            title="Chart"
+            icon="bi bi-graph-up"
+            :default-open="true"
+            storage-key="stock-chart"
+            body-class="p-0"
+          >
+            <template #actions>
               <a
                 :href="`https://www.google.com/finance/quote/${stock.symbol}:NASDAQ`"
                 target="_blank"
                 class="btn btn-sm btn-outline-secondary"
                 title="View on Google Finance"
+                @click.stop
               >
                 <i class="bi bi-box-arrow-up-right"></i>
               </a>
+            </template>
+            <!-- TradingView Widget -->
+            <div class="tradingview-widget-container">
+              <div :id="`tradingview_${stock.symbol}`" style="height: 500px;"></div>
             </div>
-            <div class="card-body p-0">
-              <!-- TradingView Widget -->
-              <div class="tradingview-widget-container">
-                <div :id="`tradingview_${stock.symbol}`" style="height: 500px;"></div>
-              </div>
-            </div>
-          </div>
+          </CollapsibleCard>
+
+          <!-- Fundamental Data Panel -->
+          <CollapsibleCard
+            title="Fundamental Data"
+            icon="bi bi-graph-up-arrow"
+            :default-open="true"
+            storage-key="fundamental-data"
+          >
+            <template #actions>
+              <button
+                class="btn btn-sm btn-outline-secondary"
+                @click.stop="refreshData"
+                aria-label="Refresh fundamental data"
+              >
+                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+              </button>
+            </template>
+            <FundamentalDataContent
+              :data="stock.fundamental_data"
+              :current-price="stock.current_price"
+            />
+          </CollapsibleCard>
 
           <!-- Targets Section -->
-          <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">
-                <i class="bi bi-crosshair me-2" aria-hidden="true"></i>
-                Price Targets
-              </h5>
+          <CollapsibleCard
+            title="Price Targets"
+            icon="bi bi-crosshair"
+            :default-open="true"
+            storage-key="price-targets"
+          >
+            <template #actions>
               <button
                 class="btn btn-sm btn-outline-primary"
-                @click="showAddTargetModal"
+                @click.stop="showAddTargetModal"
                 aria-label="Add new price target"
               >
                 <i class="bi bi-plus" aria-hidden="true"></i>
               </button>
-            </div>
-            <div class="card-body">
+            </template>
+            <div>
               <div
                 v-for="target in stock.targets"
                 :key="target.id"
@@ -227,67 +251,67 @@
                 </div>
               </div>
             </div>
-          </div>
+          </CollapsibleCard>
 
           <!-- Alert History -->
-          <div class="card mb-4" v-if="stock.alert_history && stock.alert_history.length">
-            <div class="card-header">
-              <h5 class="mb-0">
-                <i class="bi bi-clock-history me-2"></i>
-                Recent Alerts
-              </h5>
-            </div>
-            <div class="card-body">
-              <div
-                v-for="alert in stock.alert_history"
-                :key="alert.id"
-                class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom"
-              >
-                <div>
-                  <span
-                    class="badge me-2"
-                    :class="getTargetBadgeClass(alert.target_type)"
-                  >
-                    {{ alert.target_type }}
-                  </span>
-                  <span>
-                    {{ formatPrice(alert.current_price) }}
-                    (target: {{ formatPrice(alert.target_price) }})
-                  </span>
-                  <div v-if="alert.alert_note" class="text-muted small mt-1">
-                    {{ alert.alert_note }}
-                  </div>
-                </div>
-                <div class="text-end text-muted small">
-                  <div>{{ formatDateTime(alert.triggered_at) }}</div>
-                  <i
-                    v-if="alert.email_sent"
-                    class="bi bi-envelope-check text-success"
-                    title="Email sent"
-                  ></i>
+          <CollapsibleCard
+            v-if="stock.alert_history && stock.alert_history.length"
+            title="Recent Alerts"
+            icon="bi bi-clock-history"
+            :default-open="false"
+            storage-key="alert-history"
+          >
+            <div
+              v-for="alert in stock.alert_history"
+              :key="alert.id"
+              class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom"
+            >
+              <div>
+                <span
+                  class="badge me-2"
+                  :class="getTargetBadgeClass(alert.target_type)"
+                >
+                  {{ alert.target_type }}
+                </span>
+                <span>
+                  {{ formatPrice(alert.current_price) }}
+                  (target: {{ formatPrice(alert.target_price) }})
+                </span>
+                <div v-if="alert.alert_note" class="text-muted small mt-1">
+                  {{ alert.alert_note }}
                 </div>
               </div>
+              <div class="text-end text-muted small">
+                <div>{{ formatDateTime(alert.triggered_at) }}</div>
+                <i
+                  v-if="alert.email_sent"
+                  class="bi bi-envelope-check text-success"
+                  title="Email sent"
+                ></i>
+              </div>
             </div>
-          </div>
+          </CollapsibleCard>
         </div>
 
         <!-- Right Column: Notes - Responsive col-md-4 -->
         <div class="col-md-4">
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">
-                <i class="bi bi-journal-text me-2" aria-hidden="true"></i>
-                Analysis Notes
-              </h5>
+          <CollapsibleCard
+            title="Analysis Notes"
+            icon="bi bi-journal-text"
+            :default-open="true"
+            storage-key="analysis-notes"
+            body-class="p-0"
+          >
+            <template #actions>
               <button
                 class="btn btn-sm btn-outline-primary"
-                @click="showAddNoteModal"
+                @click.stop="showAddNoteModal"
                 aria-label="Add new analysis note"
               >
                 <i class="bi bi-plus" aria-hidden="true"></i>
               </button>
-            </div>
-            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+            </template>
+            <div style="max-height: 600px; overflow-y: auto; padding: 1rem;">
               <div
                 v-for="note in stock.notes"
                 :key="note.id"
@@ -313,7 +337,7 @@
                 </button>
               </div>
             </div>
-          </div>
+          </CollapsibleCard>
         </div>
       </div>
     </div>
@@ -364,6 +388,8 @@ import AddNoteModal from '@/components/AddNoteModal.vue'
 import ViewNoteModal from '@/components/ViewNoteModal.vue'
 import ManageTagsModal from '@/components/ManageTagsModal.vue'
 import StockDetailSkeleton from '@/components/StockDetailSkeleton.vue'
+import CollapsibleCard from '@/components/CollapsibleCard.vue'
+import FundamentalDataContent from '@/components/FundamentalDataContent.vue'
 import { targetsApi, stocksApi } from '@/api'
 
 export default {
@@ -374,7 +400,9 @@ export default {
     AddNoteModal,
     ViewNoteModal,
     ManageTagsModal,
-    StockDetailSkeleton
+    StockDetailSkeleton,
+    CollapsibleCard,
+    FundamentalDataContent
   },
   setup() {
     const route = useRoute()

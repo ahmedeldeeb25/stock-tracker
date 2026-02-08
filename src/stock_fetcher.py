@@ -190,3 +190,115 @@ class StockFetcher:
         except Exception as e:
             logger.error(f"Error fetching after-hours price for {symbol}: {e}")
             return None
+
+    def get_fundamental_data(self, symbol: str) -> Optional[Dict[str, any]]:
+        """Get comprehensive fundamental and technical data for a stock.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., 'AAPL')
+
+        Returns:
+            Dictionary with fundamental data or None if failed
+        """
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+
+            if not info or not isinstance(info, dict):
+                logger.warning(f"No valid info available for {symbol}")
+                return None
+
+            # Extract fundamental data
+            fundamental_data = {
+                # Valuation Metrics
+                'market_cap': info.get('marketCap'),
+                'enterprise_value': info.get('enterpriseValue'),
+                'pe_ratio': info.get('trailingPE') or info.get('forwardPE'),
+                'trailing_pe': info.get('trailingPE'),
+                'forward_pe': info.get('forwardPE'),
+                'peg_ratio': info.get('pegRatio'),
+                'price_to_book': info.get('priceToBook'),
+                'price_to_sales': info.get('priceToSalesTrailing12Months'),
+                'enterprise_to_revenue': info.get('enterpriseToRevenue'),
+                'enterprise_to_ebitda': info.get('enterpriseToEbitda'),
+
+                # Risk & Performance Metrics
+                'beta': info.get('beta'),
+                'fifty_two_week_low': info.get('fiftyTwoWeekLow'),
+                'fifty_two_week_high': info.get('fiftyTwoWeekHigh'),
+                'fifty_day_average': info.get('fiftyDayAverage'),
+                'two_hundred_day_average': info.get('twoHundredDayAverage'),
+
+                # Trading Information
+                'volume': info.get('volume'),
+                'average_volume': info.get('averageVolume'),
+                'average_volume_10days': info.get('averageVolume10days'),
+                'bid': info.get('bid'),
+                'ask': info.get('ask'),
+                'bid_size': info.get('bidSize'),
+                'ask_size': info.get('askSize'),
+
+                # Dividend Information
+                'dividend_rate': info.get('dividendRate'),
+                'dividend_yield': info.get('dividendYield'),
+                'payout_ratio': info.get('payoutRatio'),
+                'ex_dividend_date': info.get('exDividendDate'),
+
+                # Profitability
+                'profit_margins': info.get('profitMargins'),
+                'operating_margins': info.get('operatingMargins'),
+                'gross_margins': info.get('grossMargins'),
+                'return_on_assets': info.get('returnOnAssets'),
+                'return_on_equity': info.get('returnOnEquity'),
+                'revenue': info.get('totalRevenue'),
+                'revenue_per_share': info.get('revenuePerShare'),
+
+                # Financial Health
+                'total_cash': info.get('totalCash'),
+                'total_debt': info.get('totalDebt'),
+                'debt_to_equity': info.get('debtToEquity'),
+                'current_ratio': info.get('currentRatio'),
+                'quick_ratio': info.get('quickRatio'),
+                'free_cashflow': info.get('freeCashflow'),
+                'operating_cashflow': info.get('operatingCashflow'),
+
+                # Earnings
+                'earnings_growth': info.get('earningsGrowth'),
+                'revenue_growth': info.get('revenueGrowth'),
+                'earnings_quarterly_growth': info.get('earningsQuarterlyGrowth'),
+                'trailing_eps': info.get('trailingEps'),
+                'forward_eps': info.get('forwardEps'),
+
+                # Analyst Recommendations
+                'recommendation': info.get('recommendationKey'),
+                'target_high_price': info.get('targetHighPrice'),
+                'target_low_price': info.get('targetLowPrice'),
+                'target_mean_price': info.get('targetMeanPrice'),
+                'target_median_price': info.get('targetMedianPrice'),
+                'number_of_analyst_opinions': info.get('numberOfAnalystOpinions'),
+
+                # Company Info
+                'sector': info.get('sector'),
+                'industry': info.get('industry'),
+                'full_time_employees': info.get('fullTimeEmployees'),
+                'website': info.get('website'),
+                'long_business_summary': info.get('longBusinessSummary'),
+            }
+
+            # Get earnings date if available
+            try:
+                calendar = ticker.calendar
+                if calendar is not None and not calendar.empty:
+                    if 'Earnings Date' in calendar.index:
+                        earnings_dates = calendar.loc['Earnings Date']
+                        if isinstance(earnings_dates, pd.Series) and len(earnings_dates) > 0:
+                            fundamental_data['earnings_date'] = earnings_dates.iloc[0].isoformat() if pd.notna(earnings_dates.iloc[0]) else None
+            except Exception as e:
+                logger.warning(f"Could not fetch earnings calendar for {symbol}: {e}")
+
+            logger.info(f"Fetched fundamental data for {symbol}")
+            return fundamental_data
+
+        except Exception as e:
+            logger.error(f"Error fetching fundamental data for {symbol}: {e}", exc_info=True)
+            return None
