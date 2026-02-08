@@ -25,7 +25,7 @@
               <span aria-label="Note date">{{ formatDate(note?.note_date) }}</span>
             </small>
           </div>
-          <div class="note-content" v-html="note?.content" role="article"></div>
+          <div class="note-content" v-html="sanitizedContent" role="article"></div>
         </div>
         <div class="modal-footer">
           <button
@@ -58,7 +58,8 @@
 </template>
 
 <script>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import DOMPurify from 'dompurify'
 import { notesApi } from '@/api'
 import { formatDate } from '@/utils/formatters'
 import { useConfirmStore } from '@/stores/confirm'
@@ -77,6 +78,17 @@ export default {
     const confirm = useConfirmStore()
     const toast = useToastStore()
     const deleting = ref(false)
+
+    // Sanitize HTML content to prevent XSS attacks
+    const sanitizedContent = computed(() => {
+      if (!props.note?.content) {
+        return ''
+      }
+      return DOMPurify.sanitize(props.note.content, {
+        ALLOWED_TAGS: ['h1', 'h2', 'h3', 'p', 'br', 'strong', 'em', 'u', 's', 'ul', 'ol', 'li', 'blockquote', 'pre', 'code', 'a'],
+        ALLOWED_ATTR: ['href', 'target', 'rel']
+      })
+    })
 
     const handleDelete = async () => {
       const isConfirmed = await confirm.show({
@@ -112,7 +124,8 @@ export default {
     return {
       deleting,
       handleDelete,
-      formatDate
+      formatDate,
+      sanitizedContent
     }
   }
 }

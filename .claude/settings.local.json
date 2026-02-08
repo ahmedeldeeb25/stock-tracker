@@ -23,7 +23,9 @@
       "Bash(ln:*)",
       "Bash(ls:*)",
       "Bash(kill:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(wc:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

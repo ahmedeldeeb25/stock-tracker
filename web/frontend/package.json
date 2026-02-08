@@ -10,6 +10,7 @@
   "dependencies": {
     "@vueup/vue-quill": "^1.2.0",
     "axios": "^1.6.5",
+    "dompurify": "^3.3.1",
     "pinia": "^2.1.7",
     "vue": "^3.4.0",
     "vue-router": "^4.2.5"
