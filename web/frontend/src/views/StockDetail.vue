@@ -1,10 +1,8 @@
 <template>
   <div>
     <!-- Loading State -->
-    <div v-if="loading" class="text-center py-5">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
+    <div v-if="loading">
+      <StockDetailSkeleton />
     </div>
 
     <!-- Error State -->
@@ -22,7 +20,7 @@
       <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
           <router-link to="/" class="text-decoration-none text-muted mb-2 d-block">
-            <i class="bi bi-arrow-left me-1"></i>
+            <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>
             Back to Dashboard
           </router-link>
           <div class="d-flex align-items-center gap-2">
@@ -30,19 +28,19 @@
               :href="`https://www.google.com/finance/quote/${stock.symbol}:NASDAQ`"
               target="_blank"
               class="text-decoration-none text-dark"
-              title="View on Google Finance"
+              :aria-label="`View ${stock.symbol} on Google Finance (opens in new tab)`"
             >
-              <h2 class="mb-1 stock-symbol-link">
+              <h1 class="h2 mb-1 stock-symbol-link">
                 {{ stock.symbol }}
-              </h2>
+              </h1>
             </a>
             <a
               :href="`https://finance.yahoo.com/chart/${stock.symbol}`"
               target="_blank"
               class="btn btn-sm btn-outline-secondary"
-              title="View Yahoo Finance Chart"
+              :aria-label="`View ${stock.symbol} chart on Yahoo Finance (opens in new tab)`"
             >
-              <i class="bi bi-graph-up"></i>
+              <i class="bi bi-graph-up" aria-hidden="true"></i>
             </a>
           </div>
           <div v-if="stock.company_name">
@@ -53,13 +51,14 @@
               class="btn btn-sm btn-link text-muted p-0"
               @click="fetchCompanyInfo"
               :disabled="fetchingInfo"
+              aria-label="Fetch company name from yfinance"
             >
               <span v-if="fetchingInfo">
-                <span class="spinner-border spinner-border-sm me-1"></span>
+                <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
                 Fetching...
               </span>
               <span v-else>
-                <i class="bi bi-cloud-download me-1"></i>
+                <i class="bi bi-cloud-download me-1" aria-hidden="true"></i>
                 Fetch Company Name
               </span>
             </button>
@@ -89,8 +88,12 @@
               RSI: {{ stock.rsi.toFixed(2) }}
             </span>
           </div>
-          <button class="btn btn-sm btn-outline-primary mt-2" @click="refreshData">
-            <i class="bi bi-arrow-clockwise me-1"></i>
+          <button
+            class="btn btn-sm btn-outline-primary mt-2"
+            @click="refreshData"
+            aria-label="Refresh stock data"
+          >
+            <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>
             Refresh
           </button>
         </div>
@@ -99,31 +102,31 @@
       <!-- Tags -->
       <div class="mb-4">
         <div v-if="stock.tags && stock.tags.length" class="d-flex flex-wrap gap-2">
-          <span
+          <button
             v-for="tag in stock.tags"
             :key="tag.id"
             class="badge tag-badge clickable-tag"
             :style="{ backgroundColor: tag.color || '#6c757d' }"
             @click="showManageTagsModal"
-            title="Click to manage tags"
+            :aria-label="`${tag.name} tag, click to manage tags`"
           >
             {{ tag.name }}
-          </span>
+          </button>
         </div>
-        <span
+        <button
           v-else
           class="badge bg-secondary clickable-tag"
           @click="showManageTagsModal"
-          title="Click to add tags"
+          aria-label="Add tags to this stock"
         >
-          <i class="bi bi-plus me-1"></i>
+          <i class="bi bi-plus me-1" aria-hidden="true"></i>
           Add Tags
-        </span>
+        </button>
       </div>
 
       <div class="row">
-        <!-- Left Column: Chart, Targets & Alerts -->
-        <div class="col-lg-8">
+        <!-- Left Column: Chart, Targets & Alerts - Responsive col-md-8 -->
+        <div class="col-md-8">
           <!-- TradingView Chart -->
           <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -152,11 +155,15 @@
           <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
               <h5 class="mb-0">
-                <i class="bi bi-crosshair me-2"></i>
+                <i class="bi bi-crosshair me-2" aria-hidden="true"></i>
                 Price Targets
               </h5>
-              <button class="btn btn-sm btn-outline-primary" @click="showAddTargetModal">
-                <i class="bi bi-plus"></i>
+              <button
+                class="btn btn-sm btn-outline-primary"
+                @click="showAddTargetModal"
+                aria-label="Add new price target"
+              >
+                <i class="bi bi-plus" aria-hidden="true"></i>
               </button>
             </div>
             <div class="card-body">
@@ -200,16 +207,16 @@
                       <button
                         class="btn btn-outline-primary btn-sm"
                         @click="editTarget(target)"
-                        title="Edit target"
+                        aria-label="Edit target"
                       >
-                        <i class="bi bi-pencil"></i>
+                        <i class="bi bi-pencil" aria-hidden="true"></i>
                       </button>
                       <button
                         class="btn btn-outline-secondary btn-sm"
                         @click="toggleTarget(target)"
-                        :title="target.is_active ? 'Deactivate' : 'Activate'"
+                        :aria-label="target.is_active ? 'Deactivate target' : 'Activate target'"
                       >
-                        <i :class="target.is_active ? 'bi bi-toggle-on' : 'bi bi-toggle-off'"></i>
+                        <i :class="target.is_active ? 'bi bi-toggle-on' : 'bi bi-toggle-off'" aria-hidden="true"></i>
                       </button>
                     </div>
                   </div>
@@ -264,16 +271,20 @@
           </div>
         </div>
 
-        <!-- Right Column: Notes -->
-        <div class="col-lg-4">
+        <!-- Right Column: Notes - Responsive col-md-4 -->
+        <div class="col-md-4">
           <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
               <h5 class="mb-0">
-                <i class="bi bi-journal-text me-2"></i>
+                <i class="bi bi-journal-text me-2" aria-hidden="true"></i>
                 Analysis Notes
               </h5>
-              <button class="btn btn-sm btn-outline-primary" @click="showAddNoteModal">
-                <i class="bi bi-plus"></i>
+              <button
+                class="btn btn-sm btn-outline-primary"
+                @click="showAddNoteModal"
+                aria-label="Add new analysis note"
+              >
+                <i class="bi bi-plus" aria-hidden="true"></i>
               </button>
             </div>
             <div class="card-body" style="max-height: 600px; overflow-y: auto;">
@@ -345,12 +356,14 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStocksStore } from '@/stores/stocks'
+import { useToastStore } from '@/stores/toast'
 import { formatPrice, formatPercent, formatDate, formatDateTime, getPriceChangeClass, getTargetBadgeClass } from '@/utils/formatters'
 import AddTargetModal from '@/components/AddTargetModal.vue'
 import EditTargetModal from '@/components/EditTargetModal.vue'
 import AddNoteModal from '@/components/AddNoteModal.vue'
 import ViewNoteModal from '@/components/ViewNoteModal.vue'
 import ManageTagsModal from '@/components/ManageTagsModal.vue'
+import StockDetailSkeleton from '@/components/StockDetailSkeleton.vue'
 import { targetsApi, stocksApi } from '@/api'
 
 export default {
@@ -360,11 +373,13 @@ export default {
     EditTargetModal,
     AddNoteModal,
     ViewNoteModal,
-    ManageTagsModal
+    ManageTagsModal,
+    StockDetailSkeleton
   },
   setup() {
     const route = useRoute()
     const stocksStore = useStocksStore()
+    const toast = useToastStore()
     const symbol = route.params.symbol
 
     const loading = computed(() => stocksStore.loading)
@@ -451,9 +466,10 @@ export default {
         if (response.data.company_name) {
           // Refresh stock data to show updated name
           await loadStock()
+          toast.success('Company information fetched successfully')
         }
       } catch (error) {
-        alert('Failed to fetch company info: ' + (error.response?.data?.error || error.message))
+        toast.error('Failed to fetch company info: ' + (error.response?.data?.error || error.message))
       } finally {
         fetchingInfo.value = false
       }
@@ -475,24 +491,28 @@ export default {
       try {
         await targetsApi.toggle(target.id)
         loadStock()
+        toast.success(`Target ${target.is_active ? 'deactivated' : 'activated'}`)
       } catch (error) {
-        alert('Failed to toggle target: ' + (error.response?.data?.error || error.message))
+        toast.error('Failed to toggle target: ' + (error.response?.data?.error || error.message))
       }
     }
 
     const handleTargetAdded = () => {
       loadStock()
       selectedTarget.value = null
+      toast.success('Target added successfully')
     }
 
     const handleTargetUpdated = () => {
       loadStock()
       selectedTarget.value = null
+      toast.success('Target updated successfully')
     }
 
     const handleTargetDeleted = () => {
       loadStock()
       selectedTarget.value = null
+      toast.success('Target deleted successfully')
     }
 
     // Note functions
@@ -526,17 +546,20 @@ export default {
     const handleNoteAdded = () => {
       loadStock()
       editingNote.value = null
+      toast.success('Note added successfully')
     }
 
     const handleNoteUpdated = () => {
       loadStock()
       editingNote.value = null
       selectedNote.value = null
+      toast.success('Note updated successfully')
     }
 
     const handleNoteDeleted = () => {
       loadStock()
       selectedNote.value = null
+      toast.success('Note deleted successfully')
     }
 
     // Tags functions
@@ -547,6 +570,7 @@ export default {
 
     const handleTagsUpdated = () => {
       loadStock()
+      toast.success('Tags updated successfully')
     }
 
     const getRsiBadgeClass = (rsi) => {

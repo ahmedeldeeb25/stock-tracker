@@ -1,9 +1,9 @@
 <template>
   <div id="app">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4" role="navigation" aria-label="Main navigation">
       <div class="container-fluid">
         <router-link to="/" class="navbar-brand">
-          <i class="bi bi-graph-up-arrow me-2"></i>
+          <i class="bi bi-graph-up-arrow me-2" aria-hidden="true"></i>
           Stock Tracker
         </router-link>
         <button
@@ -11,6 +11,9 @@
           type="button"
           data-bs-toggle="collapse"
           data-bs-target="#navbarNav"
+          aria-controls="navbarNav"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
         >
           <span class="navbar-toggler-icon"></span>
         </button>
@@ -18,13 +21,13 @@
           <ul class="navbar-nav ms-auto">
             <li class="nav-item">
               <router-link to="/" class="nav-link">
-                <i class="bi bi-speedometer2 me-1"></i>
+                <i class="bi bi-speedometer2 me-1" aria-hidden="true"></i>
                 Dashboard
               </router-link>
             </li>
             <li class="nav-item">
               <router-link to="/alerts" class="nav-link">
-                <i class="bi bi-bell me-1"></i>
+                <i class="bi bi-bell me-1" aria-hidden="true"></i>
                 Alert History
               </router-link>
             </li>
@@ -33,14 +36,27 @@
       </div>
     </nav>
 
-    <div class="container-fluid">
+    <main class="container-fluid" role="main">
       <router-view />
-    </div>
+    </main>
+
+    <!-- Toast Notification Container -->
+    <ToastContainer />
+
+    <!-- Confirm Modal -->
+    <ConfirmModal />
   </div>
 </template>
 
 <script>
+import ToastContainer from '@/components/ToastContainer.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+
 export default {
-  name: 'App'
+  name: 'App',
+  components: {
+    ToastContainer,
+    ConfirmModal
+  }
 }
 </script>

@@ -1,3 +1,74 @@
+/* ==========================================================================
+   Design Tokens - Phase 1
+   ========================================================================== */
+
+:root {
+  /* Typography Scale (Modular 1.2x) */
+  --font-size-h1: 2rem;        /* 32px - Page titles */
+  --font-size-h2: 1.67rem;     /* 26.72px - Section headers */
+  --font-size-h3: 1.39rem;     /* 22.27px - Subsection headers */
+  --font-size-h4: 1.17rem;     /* 18.72px - Card titles */
+  --font-size-body: 1rem;      /* 16px - Default text */
+  --font-size-small: 0.83rem;  /* 13.28px - Secondary info */
+
+  /* Spacing Scale (8pt Grid System) */
+  --space-0-5: 4px;   /* 0.5x - Inline elements */
+  --space-1: 8px;     /* 1x - Tight spacing */
+  --space-2: 16px;    /* 2x - Between components */
+  --space-3: 24px;    /* 3x - Between sections */
+  --space-4: 32px;    /* 4x - Between major sections */
+
+  /* Color Palette - WCAG AA Compliant */
+  --color-primary: #2563EB;
+  --color-primary-hover: #1D4ED8;
+  --color-primary-active: #1E40AF;
+
+  --color-success: #059669;
+  --color-success-light: #D1FAE5;
+
+  --color-danger: #DC2626;
+  --color-danger-light: #FEE2E2;
+
+  --color-warning: #D97706;
+  --color-warning-light: #FEF3C7;
+
+  --color-info: #0891B2;
+  --color-info-light: #CFFAFE;
+
+  /* Grayscale */
+  --color-gray-50: #F9FAFB;
+  --color-gray-100: #F3F4F6;
+  --color-gray-200: #E5E7EB;
+  --color-gray-300: #D1D5DB;
+  --color-gray-600: #6C757D;
+  --color-gray-900: #111827;
+
+  /* Component Tokens */
+  --card-padding: 16px;
+  --card-border: 1px solid var(--color-gray-200);
+  --card-radius: 8px;
+  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+  /* Button Tokens */
+  --btn-height-sm: 32px;
+  --btn-height-md: 40px;
+  --btn-height-lg: 48px;
+  --btn-padding-x-sm: 12px;
+  --btn-padding-x-md: 16px;
+  --btn-padding-x-lg: 20px;
+  --btn-radius: 6px;
+
+  /* Touch Targets (Mobile) */
+  --touch-target-min: 44px;
+
+  /* Transitions */
+  --duration-instant: 100ms;
+  --duration-fast: 200ms;
+  --duration-normal: 300ms;
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -11,13 +82,18 @@ body {
   background-color: #f8f9fa;
 }
 
+/* ==========================================================================
+   Components
+   ========================================================================== */
+
 .stock-card {
-  transition: all 0.2s ease-in-out;
-  border: 1px solid #dee2e6;
+  transition: all var(--duration-fast) var(--ease-out);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
 }
 
 .stock-card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: var(--card-shadow-hover);
   transform: translateY(-2px);
 }
 
@@ -34,11 +110,11 @@ body {
 }
 
 .price-positive {
-  color: #198754;
+  color: var(--color-success);
 }
 
 .price-negative {
-  color: #dc3545;
+  color: var(--color-danger);
 }
 
 .alert-triggered {
@@ -60,4 +136,274 @@ body {
 
 .btn-sm {
   font-size: 0.875rem;
+}
+
+/* ==========================================================================
+   Accessibility Enhancements
+   ========================================================================== */
+
+/* Focus Visible for all interactive elements */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Touch Targets - Minimum 44x44px for mobile */
+@media (max-width: 767px) {
+  .btn-sm {
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+  }
+
+  .btn {
+    min-height: var(--touch-target-min);
+  }
+
+  /* Icon-only buttons */
+  .btn-close,
+  button[aria-label]:not(.btn-lg) {
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+  }
+}
+
+/* Screen reader only class */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ==========================================================================
+   Toast Notifications
+   ========================================================================== */
+
+.toast-container {
+  position: fixed;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 1050;
+  max-width: 360px;
+}
+
+.toast-notification {
+  background: white;
+  border-radius: var(--btn-radius);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  padding: var(--space-2);
+  margin-bottom: var(--space-2);
+  display: flex;
+  align-items: start;
+  gap: var(--space-2);
+  min-width: 300px;
+}
+
+.toast-success {
+  border-left: 4px solid var(--color-success);
+}
+
+.toast-error {
+  border-left: 4px solid var(--color-danger);
+}
+
+.toast-warning {
+  border-left: 4px solid var(--color-warning);
+}
+
+.toast-info {
+  border-left: 4px solid var(--color-info);
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.toast-content {
+  flex: 1;
+  font-size: var(--font-size-small);
+}
+
+.toast-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--color-gray-600);
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--duration-instant);
+}
+
+.toast-close:hover {
+  color: var(--color-gray-900);
+}
+
+/* Toast animations */
+.toast-enter-active {
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.toast-enter-from {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+.toast-leave-active {
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+/* Mobile adjustments for toasts */
+@media (max-width: 767px) {
+  .toast-container {
+    top: var(--space-2);
+    right: var(--space-2);
+    left: var(--space-2);
+    max-width: none;
+  }
+
+  .toast-notification {
+    min-width: auto;
+  }
+}
+
+/* ==========================================================================
+   Modal Improvements
+   ========================================================================== */
+
+/* Responsive modal adjustments */
+@media (max-width: 767px) {
+  .modal-dialog {
+    margin: 0.5rem;
+  }
+
+  .modal-dialog-scrollable {
+    max-height: calc(100vh - 1rem);
+  }
+
+  .modal-body {
+    padding: 1rem;
+  }
+
+  .modal-header,
+  .modal-footer {
+    padding: 0.75rem 1rem;
+  }
+}
+
+/* Ensure modals are scrollable on small screens */
+.modal-dialog-scrollable .modal-body {
+  overflow-y: auto;
+  max-height: calc(100vh - 200px);
+}
+
+@media (max-width: 576px) {
+  .modal-dialog-scrollable .modal-body {
+    max-height: calc(100vh - 150px);
+  }
+}
+
+/* ==========================================================================
+   Responsive Utilities
+   ========================================================================== */
+
+/* Ensure proper stacking on mobile for StockDetail layout */
+@media (max-width: 767px) {
+  .col-md-8,
+  .col-md-4 {
+    margin-bottom: 1rem;
+  }
+
+  /* Full width cards on mobile */
+  .card {
+    margin-bottom: 1rem;
+  }
+
+  /* Adjust button groups for mobile */
+  .btn-group-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  /* Stack form controls vertically on mobile */
+  .row.g-2 > [class*="col-"] {
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* ==========================================================================
+   Print Styles
+   ========================================================================== */
+
+@media print {
+  .toast-container,
+  .btn,
+  .modal {
+    display: none !important;
+  }
+}
+
+/* ==========================================================================
+   Skeleton Loaders
+   ========================================================================== */
+
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: var(--btn-radius);
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-text {
+  height: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-heading {
+  height: 1.67rem;
+  margin-bottom: 0.75rem;
+  width: 60%;
+}
+
+.skeleton-price {
+  height: 1.5rem;
+  width: 100px;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-badge {
+  height: 1.5rem;
+  width: 60px;
+  display: inline-block;
+  margin-right: 0.5rem;
 }

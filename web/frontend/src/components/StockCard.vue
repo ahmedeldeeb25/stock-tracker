@@ -1,13 +1,17 @@
 <template>
-  <div class="card stock-card h-100">
+  <article class="card stock-card h-100">
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-start mb-2">
         <div class="flex-grow-1 me-2">
-          <h5 class="card-title mb-1">
-            <router-link :to="`/stock/${stock.symbol}`" class="text-decoration-none">
+          <h2 class="h5 card-title mb-1">
+            <router-link
+              :to="`/stock/${stock.symbol}`"
+              class="text-decoration-none"
+              :aria-label="`View details for ${stock.symbol}${stock.company_name ? ', ' + stock.company_name : ''}`"
+            >
               {{ stock.symbol }}
             </router-link>
-          </h5>
+          </h2>
           <p class="text-muted small mb-2" v-if="stock.company_name">
             {{ stock.company_name }}
           </p>
@@ -15,12 +19,17 @@
         <div class="text-end flex-shrink-0">
           <!-- Regular Market Price -->
           <div v-if="stock.current_price" class="d-flex align-items-baseline justify-content-end gap-2 mb-1">
-            <span class="h5 mb-0">{{ formatPrice(stock.current_price) }}</span>
+            <span class="h5 mb-0" aria-label="Current price">{{ formatPrice(stock.current_price) }}</span>
             <span
               v-if="stock.price_change_percent"
               :class="getPriceChangeClass(stock.price_change_percent)"
               class="small fw-semibold"
+              :aria-label="`Price change ${stock.price_change_percent >= 0 ? 'up' : 'down'} ${Math.abs(stock.price_change_percent)}%`"
             >
+              <i
+                :class="stock.price_change_percent >= 0 ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"
+                aria-hidden="true"
+              ></i>
               {{ stock.price_change_percent >= 0 ? '+' : '' }}{{ formatPercent(stock.price_change_percent) }}
             </span>
           </div>
@@ -43,19 +52,21 @@
       </div>
 
       <!-- Tags -->
-      <div class="mb-2" v-if="stock.tags && stock.tags.length">
+      <div class="mb-2" v-if="stock.tags && stock.tags.length" role="list" aria-label="Stock tags">
         <span
           v-for="tag in stock.tags"
           :key="tag.id"
           class="badge tag-badge me-1"
           :style="{ backgroundColor: tag.color || '#6c757d' }"
+          role="listitem"
         >
           {{ tag.name }}
         </span>
       </div>
 
       <!-- Targets -->
-      <div class="mt-3">
+      <div class="mt-3" v-if="filteredTargets.length">
+        <h3 class="visually-hidden">Price Targets</h3>
         <div
           v-for="target in filteredTargets"
           :key="target.id"
@@ -73,7 +84,11 @@
             <span class="text-muted">@ {{ formatPrice(target.target_price) }}</span>
           </div>
           <div class="text-end">
-            <i v-if="target.is_triggered" class="bi bi-bell-fill text-warning"></i>
+            <i
+              v-if="target.is_triggered"
+              class="bi bi-bell-fill text-warning"
+              aria-label="Alert triggered"
+            ></i>
             <small :class="getPriceChangeClass(target.difference_percent)">
               {{ target.difference_percent ? formatPercent(target.difference_percent) : '' }}
             </small>
@@ -83,23 +98,31 @@
 
       <!-- Notes count -->
       <div class="mt-3 text-muted small" v-if="stock.notes_count">
-        <i class="bi bi-journal-text me-1"></i>
+        <i class="bi bi-journal-text me-1" aria-hidden="true"></i>
         {{ stock.notes_count }} {{ stock.notes_count === 1 ? 'note' : 'notes' }}
       </div>
     </div>
 
     <div class="card-footer bg-transparent">
-      <div class="d-flex justify-content-between">
-        <router-link :to="`/stock/${stock.symbol}`" class="btn btn-sm btn-outline-primary">
-          <i class="bi bi-eye me-1"></i>
+      <div class="d-flex justify-content-between gap-2">
+        <router-link
+          :to="`/stock/${stock.symbol}`"
+          class="btn btn-sm btn-outline-primary flex-grow-1"
+          :aria-label="`View ${stock.symbol} details`"
+        >
+          <i class="bi bi-eye me-1" aria-hidden="true"></i>
           Details
         </router-link>
-        <button @click="$emit('delete', stock.id)" class="btn btn-sm btn-outline-danger">
-          <i class="bi bi-trash"></i>
+        <button
+          @click="$emit('delete', stock.id)"
+          class="btn btn-sm btn-outline-danger"
+          :aria-label="`Delete ${stock.symbol} from portfolio`"
+        >
+          <i class="bi bi-trash" aria-hidden="true"></i>
         </button>
       </div>
     </div>
-  </div>
+  </article>
 </template>
 
 <script>

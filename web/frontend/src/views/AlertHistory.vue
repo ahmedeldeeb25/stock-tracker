@@ -119,12 +119,16 @@
 <script>
 import { computed, onMounted } from 'vue'
 import { useAlertsStore } from '@/stores/alerts'
+import { useConfirmStore } from '@/stores/confirm'
+import { useToastStore } from '@/stores/toast'
 import { formatPrice, formatDateTime, getTargetBadgeClass } from '@/utils/formatters'
 
 export default {
   name: 'AlertHistory',
   setup() {
     const alertsStore = useAlertsStore()
+    const confirm = useConfirmStore()
+    const toast = useToastStore()
 
     const loading = computed(() => alertsStore.loading)
     const error = computed(() => alertsStore.error)
@@ -142,11 +146,20 @@ export default {
     }
 
     const handleDelete = async (alertId) => {
-      if (confirm('Are you sure you want to delete this alert?')) {
+      const isConfirmed = await confirm.show({
+        title: 'Delete Alert?',
+        message: 'Are you sure you want to delete this alert?',
+        variant: 'danger',
+        confirmText: 'Delete',
+        cancelText: 'Cancel'
+      })
+
+      if (isConfirmed) {
         try {
           await alertsStore.deleteAlert(alertId)
+          toast.success('Alert deleted successfully')
         } catch (error) {
-          alert('Failed to delete alert: ' + error.message)
+          toast.error('Failed to delete alert: ' + error.message)
         }
       }
     }

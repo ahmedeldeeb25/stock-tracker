@@ -1,21 +1,34 @@
 <template>
-  <div class="modal fade" id="manageTagsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+  <div
+    class="modal fade"
+    id="manageTagsModal"
+    tabindex="-1"
+    aria-labelledby="manageTagsModalLabel"
+    aria-modal="true"
+    role="dialog"
+  >
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Manage Tags</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <h5 class="modal-title" id="manageTagsModalLabel">Manage Tags</h5>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+            aria-label="Close"
+          ></button>
         </div>
         <div class="modal-body">
           <!-- Current Tags Section -->
           <div class="mb-4">
             <h6 class="mb-3">Current Tags</h6>
-            <div v-if="currentTags.length > 0" class="d-flex flex-wrap gap-2">
+            <div v-if="currentTags.length > 0" class="d-flex flex-wrap gap-2" role="list" aria-label="Current tags">
               <span
                 v-for="tag in currentTags"
                 :key="tag.id"
                 class="badge tag-badge d-flex align-items-center gap-2"
                 :style="{ backgroundColor: tag.color || '#6c757d', fontSize: '0.9rem', padding: '0.5rem 0.75rem' }"
+                role="listitem"
               >
                 {{ tag.name }}
                 <button
@@ -23,7 +36,7 @@
                   class="btn-close btn-close-white"
                   style="font-size: 0.6rem;"
                   @click="removeTag(tag.id)"
-                  title="Remove tag"
+                  :aria-label="`Remove ${tag.name} tag`"
                 ></button>
               </span>
             </div>
@@ -34,7 +47,8 @@
           <div class="mb-4">
             <h6 class="mb-3">Add Existing Tag</h6>
             <div class="d-flex gap-2 mb-3">
-              <select v-model="selectedTagId" class="form-select">
+              <label for="selectTag" class="visually-hidden">Select a tag to add</label>
+              <select id="selectTag" v-model="selectedTagId" class="form-select" aria-label="Select tag to add">
                 <option value="">Select a tag...</option>
                 <option
                   v-for="tag in availableTags"
@@ -48,6 +62,7 @@
                 class="btn btn-primary"
                 @click="addExistingTag"
                 :disabled="!selectedTagId"
+                aria-label="Add selected tag to stock"
               >
                 Add
               </button>
@@ -62,25 +77,31 @@
             <form @submit.prevent="createNewTag">
               <div class="row g-2 mb-2">
                 <div class="col-md-6">
+                  <label for="newTagName" class="visually-hidden">New tag name</label>
                   <input
+                    id="newTagName"
                     v-model="newTag.name"
                     type="text"
                     class="form-control"
                     placeholder="Tag name"
                     required
+                    aria-label="New tag name"
                   >
                 </div>
                 <div class="col-md-4">
+                  <label for="newTagColor" class="visually-hidden">Tag color</label>
                   <input
+                    id="newTagColor"
                     v-model="newTag.color"
                     type="color"
                     class="form-control form-control-color w-100"
                     title="Choose tag color"
+                    aria-label="Choose tag color"
                   >
                 </div>
                 <div class="col-md-2">
-                  <button type="submit" class="btn btn-success w-100">
-                    <i class="bi bi-plus"></i> Create
+                  <button type="submit" class="btn btn-success w-100" aria-label="Create new tag">
+                    <i class="bi bi-plus" aria-hidden="true"></i> Create
                   </button>
                 </div>
               </div>
@@ -92,33 +113,46 @@
           <!-- Manage All Tags Section -->
           <div>
             <h6 class="mb-3">All Tags</h6>
-            <div class="list-group">
+            <div class="list-group" role="list" aria-label="All available tags">
               <div
                 v-for="tag in allTags"
                 :key="tag.id"
                 class="list-group-item d-flex justify-content-between align-items-center"
+                role="listitem"
               >
                 <div class="d-flex align-items-center gap-3 flex-grow-1">
+                  <label v-if="editingTagId === tag.id" :for="`editTagName-${tag.id}`" class="visually-hidden">
+                    Edit tag name
+                  </label>
                   <input
                     v-if="editingTagId === tag.id"
+                    :id="`editTagName-${tag.id}`"
                     v-model="editForm.name"
                     type="text"
                     class="form-control form-control-sm"
                     style="max-width: 200px;"
+                    aria-label="Edit tag name"
                   >
                   <span v-else class="badge" :style="{ backgroundColor: tag.color || '#6c757d' }">
                     {{ tag.name }}
                   </span>
 
+                  <label v-if="editingTagId === tag.id" :for="`editTagColor-${tag.id}`" class="visually-hidden">
+                    Edit tag color
+                  </label>
                   <input
                     v-if="editingTagId === tag.id"
+                    :id="`editTagColor-${tag.id}`"
                     v-model="editForm.color"
                     type="color"
                     class="form-control form-control-color form-control-sm"
                     style="max-width: 60px;"
+                    aria-label="Edit tag color"
                   >
 
-                  <small class="text-muted">{{ tag.stock_count }} stocks</small>
+                  <small class="text-muted" :aria-label="`Used in ${tag.stock_count} stocks`">
+                    {{ tag.stock_count }} stocks
+                  </small>
                 </div>
 
                 <div class="btn-group btn-group-sm">
@@ -126,29 +160,33 @@
                     v-if="editingTagId === tag.id"
                     class="btn btn-success btn-sm"
                     @click="saveTagEdit(tag.id)"
+                    aria-label="Save tag changes"
                   >
-                    <i class="bi bi-check"></i>
+                    <i class="bi bi-check" aria-hidden="true"></i>
                   </button>
                   <button
                     v-if="editingTagId === tag.id"
                     class="btn btn-secondary btn-sm"
                     @click="cancelEdit"
+                    aria-label="Cancel editing"
                   >
-                    <i class="bi bi-x"></i>
+                    <i class="bi bi-x" aria-hidden="true"></i>
                   </button>
                   <button
                     v-else
                     class="btn btn-outline-primary btn-sm"
                     @click="startEdit(tag)"
+                    :aria-label="`Edit ${tag.name} tag`"
                   >
-                    <i class="bi bi-pencil"></i>
+                    <i class="bi bi-pencil" aria-hidden="true"></i>
                   </button>
                   <button
                     v-if="editingTagId !== tag.id"
                     class="btn btn-outline-danger btn-sm"
                     @click="deleteTag(tag.id)"
+                    :aria-label="`Delete ${tag.name} tag`"
                   >
-                    <i class="bi bi-trash"></i>
+                    <i class="bi bi-trash" aria-hidden="true"></i>
                   </button>
                 </div>
               </div>
@@ -168,6 +206,8 @@
 <script>
 import { ref, computed, onMounted } from 'vue'
 import { tagsApi, stocksApi } from '@/api'
+import { useConfirmStore } from '@/stores/confirm'
+import { useToastStore } from '@/stores/toast'
 
 export default {
   name: 'ManageTagsModal',
@@ -183,6 +223,8 @@ export default {
   },
   emits: ['tags-updated'],
   setup(props, { emit }) {
+    const confirm = useConfirmStore()
+    const toast = useToastStore()
     const allTags = ref([])
     const selectedTagId = ref('')
     const newTag = ref({ name: '', color: '#6366F1' })
@@ -216,19 +258,27 @@ export default {
         emit('tags-updated')
         loadTags()
       } catch (error) {
-        alert('Failed to add tag: ' + (error.response?.data?.error || error.message))
+        toast.error('Failed to add tag: ' + (error.response?.data?.error || error.message))
       }
     }
 
     const removeTag = async (tagId) => {
-      if (!confirm('Remove this tag from the stock?')) return
+      const isConfirmed = await confirm.show({
+        title: 'Remove Tag?',
+        message: 'Remove this tag from the stock?',
+        variant: 'warning',
+        confirmText: 'Remove',
+        cancelText: 'Cancel'
+      })
+
+      if (!isConfirmed) return
 
       try {
         await stocksApi.removeTag(props.stockId, tagId)
         emit('tags-updated')
         loadTags()
       } catch (error) {
-        alert('Failed to remove tag: ' + (error.response?.data?.error || error.message))
+        toast.error('Failed to remove tag: ' + (error.response?.data?.error || error.message))
       }
     }
 
@@ -243,7 +293,7 @@ export default {
         newTag.value = { name: '', color: '#6366F1' }
         loadTags()
       } catch (error) {
-        alert('Failed to create tag: ' + (error.response?.data?.error || error.message))
+        toast.error('Failed to create tag: ' + (error.response?.data?.error || error.message))
       }
     }
 
@@ -267,19 +317,27 @@ export default {
         emit('tags-updated')
         loadTags()
       } catch (error) {
-        alert('Failed to update tag: ' + (error.response?.data?.error || error.message))
+        toast.error('Failed to update tag: ' + (error.response?.data?.error || error.message))
       }
     }
 
     const deleteTag = async (tagId) => {
-      if (!confirm('Delete this tag? It will be removed from all stocks.')) return
+      const isConfirmed = await confirm.show({
+        title: 'Delete Tag?',
+        message: 'Delete this tag? It will be removed from all stocks.',
+        variant: 'danger',
+        confirmText: 'Delete',
+        cancelText: 'Cancel'
+      })
+
+      if (!isConfirmed) return
 
       try {
         await tagsApi.delete(tagId)
         emit('tags-updated')
         loadTags()
       } catch (error) {
-        alert('Failed to delete tag: ' + (error.response?.data?.error || error.message))
+        toast.error('Failed to delete tag: ' + (error.response?.data?.error || error.message))
       }
     }
 

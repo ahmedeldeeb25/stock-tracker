@@ -1,57 +1,84 @@
 <template>
-  <div class="modal fade" id="addNoteModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+  <div
+    class="modal fade"
+    id="addNoteModal"
+    tabindex="-1"
+    aria-labelledby="addNoteModalLabel"
+    aria-modal="true"
+    role="dialog"
+  >
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">{{ editMode ? 'Edit' : 'Add' }} Analysis Note</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <h5 class="modal-title" id="addNoteModalLabel">
+            {{ editMode ? 'Edit' : 'Add' }} Analysis Note
+          </h5>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+            aria-label="Close"
+          ></button>
         </div>
         <div class="modal-body">
           <form @submit.prevent="handleSubmit">
             <!-- Title -->
             <div class="mb-3">
-              <label class="form-label">Title *</label>
+              <label for="noteTitle" class="form-label">
+                Title <span class="text-danger">*</span>
+              </label>
               <input
+                id="noteTitle"
                 type="text"
                 class="form-control"
                 v-model="formData.title"
                 placeholder="e.g., Q4 Earnings Analysis"
                 required
+                aria-required="true"
               >
             </div>
 
             <!-- Note Date -->
             <div class="mb-3">
-              <label class="form-label">Date *</label>
+              <label for="noteDate" class="form-label">
+                Date <span class="text-danger">*</span>
+              </label>
               <input
+                id="noteDate"
                 type="date"
                 class="form-control"
                 v-model="formData.note_date"
                 required
+                aria-required="true"
               >
             </div>
 
             <!-- Content -->
             <div class="mb-3">
-              <label class="form-label">Content *</label>
-              <QuillEditor
-                v-model:content="formData.content"
-                content-type="html"
-                theme="snow"
-                :toolbar="toolbarOptions"
-                style="min-height: 200px;"
-              />
+              <label for="noteContent" class="form-label">
+                Content <span class="text-danger">*</span>
+              </label>
+              <div id="noteContent">
+                <QuillEditor
+                  v-model:content="formData.content"
+                  content-type="html"
+                  theme="snow"
+                  :toolbar="toolbarOptions"
+                  style="min-height: 200px;"
+                  aria-label="Note content editor"
+                />
+              </div>
             </div>
 
             <!-- Error Message -->
-            <div v-if="errorMessage" class="alert alert-danger">
+            <div v-if="errorMessage" class="alert alert-danger" role="alert">
               {{ errorMessage }}
             </div>
 
             <!-- Submit Button -->
             <div class="d-grid">
               <button type="submit" class="btn btn-primary" :disabled="submitting">
-                <span v-if="submitting" class="spinner-border spinner-border-sm me-2"></span>
+                <span v-if="submitting" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
                 {{ submitting ? (editMode ? 'Updating...' : 'Adding...') : (editMode ? 'Update Note' : 'Add Note') }}
               </button>
             </div>

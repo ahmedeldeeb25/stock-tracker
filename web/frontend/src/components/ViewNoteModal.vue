@@ -1,27 +1,40 @@
 <template>
-  <div class="modal fade" id="viewNoteModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+  <div
+    class="modal fade"
+    id="viewNoteModal"
+    tabindex="-1"
+    aria-labelledby="viewNoteModalLabel"
+    aria-modal="true"
+    role="dialog"
+  >
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">{{ note?.title }}</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <h5 class="modal-title" id="viewNoteModalLabel">{{ note?.title }}</h5>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+            aria-label="Close"
+          ></button>
         </div>
         <div class="modal-body">
           <div class="mb-3">
             <small class="text-muted">
-              <i class="bi bi-calendar me-1"></i>
-              {{ formatDate(note?.note_date) }}
+              <i class="bi bi-calendar me-1" aria-hidden="true"></i>
+              <span aria-label="Note date">{{ formatDate(note?.note_date) }}</span>
             </small>
           </div>
-          <div class="note-content" v-html="note?.content"></div>
+          <div class="note-content" v-html="note?.content" role="article"></div>
         </div>
         <div class="modal-footer">
           <button
             type="button"
             class="btn btn-outline-primary"
             @click="$emit('edit', note)"
+            aria-label="Edit this note"
           >
-            <i class="bi bi-pencil me-1"></i>
+            <i class="bi bi-pencil me-1" aria-hidden="true"></i>
             Edit
           </button>
           <button
@@ -29,9 +42,10 @@
             class="btn btn-outline-danger"
             @click="handleDelete"
             :disabled="deleting"
+            aria-label="Delete this note"
           >
-            <span v-if="deleting" class="spinner-border spinner-border-sm me-2"></span>
-            <i v-else class="bi bi-trash me-1"></i>
+            <span v-if="deleting" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+            <i v-else class="bi bi-trash me-1" aria-hidden="true"></i>
             Delete
           </button>
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -47,6 +61,8 @@
 import { ref } from 'vue'
 import { notesApi } from '@/api'
 import { formatDate } from '@/utils/formatters'
+import { useConfirmStore } from '@/stores/confirm'
+import { useToastStore } from '@/stores/toast'
 
 export default {
   name: 'ViewNoteModal',
@@ -58,10 +74,20 @@ export default {
   },
   emits: ['note-deleted', 'edit'],
   setup(props, { emit }) {
+    const confirm = useConfirmStore()
+    const toast = useToastStore()
     const deleting = ref(false)
 
     const handleDelete = async () => {
-      if (!confirm('Are you sure you want to delete this note?')) {
+      const isConfirmed = await confirm.show({
+        title: 'Delete Note?',
+        message: 'Are you sure you want to delete this note? This action cannot be undone.',
+        variant: 'danger',
+        confirmText: 'Delete',
+        cancelText: 'Cancel'
+      })
+
+      if (!isConfirmed) {
         return
       }
 
@@ -77,7 +103,7 @@ export default {
 
         emit('note-deleted')
       } catch (error) {
-        alert('Failed to delete note: ' + (error.response?.data?.error || error.message))
+        toast.error('Failed to delete note: ' + (error.response?.data?.error || error.message))
       } finally {
         deleting.value = false
       }
