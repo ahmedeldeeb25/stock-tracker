@@ -64,6 +64,21 @@
         </span>
       </div>
 
+      <!-- Investment Timeframes -->
+      <div class="mb-2" v-if="stock.timeframes && stock.timeframes.length" role="list" aria-label="Investment timeframes">
+        <span
+          v-for="timeframe in stock.timeframes"
+          :key="timeframe.id"
+          class="badge timeframe-badge me-1"
+          :style="{ backgroundColor: timeframe.color || '#6c757d' }"
+          role="listitem"
+          :title="timeframe.description"
+        >
+          <i class="bi bi-clock me-1" aria-hidden="true"></i>
+          {{ timeframe.name }}
+        </span>
+      </div>
+
       <!-- Targets -->
       <div class="mt-3" v-if="filteredTargets.length">
         <h3 class="visually-hidden">Price Targets</h3>

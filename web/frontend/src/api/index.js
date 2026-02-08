@@ -56,6 +56,16 @@ export const stocksApi = {
     return client.delete(`/stocks/${id}/tags/${tagId}`)
   },
 
+  // Add timeframe to stock
+  addTimeframe(id, timeframeId) {
+    return client.post(`/stocks/${id}/timeframes`, { timeframe_id: timeframeId })
+  },
+
+  // Remove timeframe from stock
+  removeTimeframe(id, timeframeId) {
+    return client.delete(`/stocks/${id}/timeframes/${timeframeId}`)
+  },
+
   // Get stock notes
   getNotes(id, params = {}) {
     return client.get(`/stocks/${id}/notes`, { params })
@@ -144,5 +154,32 @@ export const alertsApi = {
   // Delete alert
   delete(id) {
     return client.delete(`/alerts/${id}`)
+  }
+}
+
+export const timeframesApi = {
+  // Get all timeframes
+  getAll() {
+    return client.get('/timeframes')
+  },
+
+  // Get timeframe by ID
+  get(id) {
+    return client.get(`/timeframes/${id}`)
+  },
+
+  // Create timeframe
+  create(data) {
+    return client.post('/timeframes', data)
+  },
+
+  // Update timeframe
+  update(id, data) {
+    return client.put(`/timeframes/${id}`, data)
+  },
+
+  // Delete timeframe
+  delete(id) {
+    return client.delete(`/timeframes/${id}`)
   }
 }

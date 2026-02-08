@@ -104,6 +104,7 @@ class StockService:
         # Get related data
         targets = self.db.get_targets_for_stock(stock.id)
         tags = self.db.get_tags_for_stock(stock.id)
+        timeframes = self.db.get_timeframes_for_stock(stock.id)
         notes = self.db.get_notes_for_stock(stock.id)
         notes_count = self.db.get_notes_count_for_stock(stock.id)
         latest_alert = self.db.get_latest_alert_for_stock(stock.id)
@@ -113,6 +114,7 @@ class StockService:
             "symbol": stock.symbol,
             "company_name": stock.company_name,
             "tags": [{"id": t.id, "name": t.name, "color": t.color} for t in tags],
+            "timeframes": [{"id": tf.id, "name": tf.name, "color": tf.color, "description": tf.description} for tf in timeframes],
             "targets": [self._target_to_dict(t) for t in targets],
             "notes": [self._note_to_dict(n) for n in notes],
             "notes_count": notes_count,
@@ -179,6 +181,7 @@ class StockService:
         for stock in stocks:
             targets = self.db.get_targets_for_stock(stock.id)
             tags = self.db.get_tags_for_stock(stock.id)
+            timeframes = self.db.get_timeframes_for_stock(stock.id)
             notes_count = self.db.get_notes_count_for_stock(stock.id)
             latest_alert = self.db.get_latest_alert_for_stock(stock.id)
 
@@ -187,6 +190,7 @@ class StockService:
                 "symbol": stock.symbol,
                 "company_name": stock.company_name,
                 "tags": [{"id": t.id, "name": t.name, "color": t.color} for t in tags],
+                "timeframes": [{"id": tf.id, "name": tf.name, "color": tf.color, "description": tf.description} for tf in timeframes],
                 "targets": [self._target_to_dict(t) for t in targets],
                 "notes_count": notes_count,
                 "created_at": stock.created_at.isoformat() if stock.created_at else None,

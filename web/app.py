@@ -52,6 +52,7 @@ try:
     from routes.notes import notes_bp
     from routes.prices import prices_bp
     from routes.alerts import alerts_bp
+    from routes.timeframes import timeframes_bp
 
     app.register_blueprint(stocks_bp, url_prefix='/api/stocks')
     app.register_blueprint(targets_bp, url_prefix='/api/targets')
@@ -59,6 +60,7 @@ try:
     app.register_blueprint(notes_bp, url_prefix='/api/notes')
     app.register_blueprint(prices_bp, url_prefix='/api/prices')
     app.register_blueprint(alerts_bp, url_prefix='/api/alerts')
+    app.register_blueprint(timeframes_bp, url_prefix='/api/timeframes')
 
     logger.info("All blueprints registered successfully")
     logger.info("Registered routes:")

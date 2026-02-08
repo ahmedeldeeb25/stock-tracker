@@ -12,6 +12,7 @@ from src.stock_fetcher import StockFetcher
 from src.db_manager import DatabaseManager
 from src.alert_checker import AlertChecker
 from src.email_notifier import EmailNotifier
+from src.telegram_notifier import TelegramNotifier
 
 
 def setup_logging():
@@ -105,7 +106,7 @@ def check_stocks():
 
             # Initialize email notifier
             email_config = config.email_config
-            notifier = EmailNotifier(
+            email_notifier = EmailNotifier(
                 smtp_server=email_config.get('smtp_server'),
                 smtp_port=email_config.get('smtp_port'),
                 sender_email=email_config.get('sender_email'),
@@ -113,14 +114,42 @@ def check_stocks():
                 recipient_email=email_config.get('recipient_email')
             )
 
-            # Send alerts
-            success = notifier.send_multiple_alerts(alerts)
-            if success:
-                logger.info("Email notification sent successfully")
-                # Update alert history to mark email as sent
+            # Initialize Telegram notifier
+            telegram_config = config.telegram_config
+            telegram_notifier = None
+            if telegram_config.get('bot_token') and telegram_config.get('chat_id'):
+                telegram_notifier = TelegramNotifier(
+                    bot_token=telegram_config.get('bot_token'),
+                    chat_id=telegram_config.get('chat_id')
+                )
+
+            # Send alerts via both channels
+            email_success = False
+            telegram_success = False
+
+            # Send email notification
+            if email_config.get('sender_email') and email_config.get('recipient_email'):
+                email_success = email_notifier.send_multiple_alerts(alerts)
+                if email_success:
+                    logger.info("Email notification sent successfully")
+                else:
+                    logger.error("Failed to send email notification")
+
+            # Send Telegram notification
+            if telegram_notifier:
+                telegram_success = telegram_notifier.send_multiple_alerts(alerts)
+                if telegram_success:
+                    logger.info("Telegram notification sent successfully")
+                else:
+                    logger.error("Failed to send Telegram notification")
+
+            # Log notification status
+            if email_success or telegram_success:
+                logger.info("Notifications sent successfully")
+                # Update alert history to mark notification as sent
                 # Note: This is a simple implementation. Could be improved to track specific alerts
             else:
-                logger.error("Failed to send email notification")
+                logger.warning("All notification channels failed")
         else:
             logger.info("No alerts triggered")
 

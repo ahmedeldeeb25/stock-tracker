@@ -34,6 +34,11 @@ class Config:
             'recipient_email': os.getenv('RECIPIENT_EMAIL', config.get('email', {}).get('recipient_email', ''))
         }
 
+        config['telegram'] = {
+            'bot_token': os.getenv('TELEGRAM_BOT_TOKEN', config.get('telegram', {}).get('bot_token', '')),
+            'chat_id': os.getenv('TELEGRAM_CHAT_ID', config.get('telegram', {}).get('chat_id', ''))
+        }
+
         return config
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -52,3 +57,8 @@ class Config:
     def email_config(self) -> Dict[str, Any]:
         """Get email configuration."""
         return self._config.get('email', {})
+
+    @property
+    def telegram_config(self) -> Dict[str, Any]:
+        """Get Telegram configuration."""
+        return self._config.get('telegram', {})

@@ -100,7 +100,8 @@
       </div>
 
       <!-- Tags -->
-      <div class="mb-4">
+      <div class="mb-3">
+        <label class="form-label small text-muted mb-1">Tags</label>
         <div v-if="stock.tags && stock.tags.length" class="d-flex flex-wrap gap-2">
           <button
             v-for="tag in stock.tags"
@@ -121,6 +122,34 @@
         >
           <i class="bi bi-plus me-1" aria-hidden="true"></i>
           Add Tags
+        </button>
+      </div>
+
+      <!-- Investment Timeframes -->
+      <div class="mb-4">
+        <label class="form-label small text-muted mb-1">Investment Timeframe</label>
+        <div v-if="stock.timeframes && stock.timeframes.length" class="d-flex flex-wrap gap-2">
+          <button
+            v-for="timeframe in stock.timeframes"
+            :key="timeframe.id"
+            class="badge timeframe-badge clickable-tag"
+            :style="{ backgroundColor: timeframe.color || '#6c757d' }"
+            @click="showManageTimeframesModal"
+            :aria-label="`${timeframe.name} timeframe, click to manage timeframes`"
+            :title="timeframe.description"
+          >
+            <i class="bi bi-clock me-1" aria-hidden="true"></i>
+            {{ timeframe.name }}
+          </button>
+        </div>
+        <button
+          v-else
+          class="badge bg-secondary clickable-tag"
+          @click="showManageTimeframesModal"
+          aria-label="Add investment timeframes to this stock"
+        >
+          <i class="bi bi-plus me-1" aria-hidden="true"></i>
+          Add Timeframe
         </button>
       </div>
 
@@ -373,6 +402,12 @@
       :current-tags="stock.tags || []"
       @tags-updated="handleTagsUpdated"
     />
+    <ManageTimeframesModal
+      v-if="stock"
+      :stock-id="stock.id"
+      :current-timeframes="stock.timeframes || []"
+      @timeframes-updated="handleTimeframesUpdated"
+    />
   </div>
 </template>
 
@@ -387,6 +422,7 @@ import EditTargetModal from '@/components/EditTargetModal.vue'
 import AddNoteModal from '@/components/AddNoteModal.vue'
 import ViewNoteModal from '@/components/ViewNoteModal.vue'
 import ManageTagsModal from '@/components/ManageTagsModal.vue'
+import ManageTimeframesModal from '@/components/ManageTimeframesModal.vue'
 import StockDetailSkeleton from '@/components/StockDetailSkeleton.vue'
 import CollapsibleCard from '@/components/CollapsibleCard.vue'
 import FundamentalDataContent from '@/components/FundamentalDataContent.vue'
@@ -400,6 +436,7 @@ export default {
     AddNoteModal,
     ViewNoteModal,
     ManageTagsModal,
+    ManageTimeframesModal,
     StockDetailSkeleton,
     CollapsibleCard,
     FundamentalDataContent
@@ -601,6 +638,17 @@ export default {
       toast.success('Tags updated successfully')
     }
 
+    // Timeframes functions
+    const showManageTimeframesModal = () => {
+      const modal = new window.bootstrap.Modal(document.getElementById('manageTimeframesModal'))
+      modal.show()
+    }
+
+    const handleTimeframesUpdated = () => {
+      loadStock()
+      toast.success('Timeframes updated successfully')
+    }
+
     const getRsiBadgeClass = (rsi) => {
       if (rsi < 30) return 'bg-success'  // Oversold
       if (rsi > 70) return 'bg-danger'   // Overbought
@@ -631,6 +679,8 @@ export default {
       handleNoteDeleted,
       showManageTagsModal,
       handleTagsUpdated,
+      showManageTimeframesModal,
+      handleTimeframesUpdated,
       formatPrice,
       formatPercent,
       formatDate,

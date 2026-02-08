@@ -38,6 +38,16 @@ class Tag:
 
 
 @dataclass
+class Timeframe:
+    """Investment timeframe model."""
+    id: Optional[int] = None
+    name: str = ""
+    color: Optional[str] = None
+    description: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+@dataclass
 class Note:
     """Note/Analysis model."""
     id: Optional[int] = None

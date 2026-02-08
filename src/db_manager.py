@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, date
 from contextlib import contextmanager
 
-from src.models import Stock, Target, Tag, Note, AlertHistory
+from src.models import Stock, Target, Tag, Note, AlertHistory, Timeframe
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +129,46 @@ class DatabaseManager:
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_alert_history_stock_id ON alert_history(stock_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_alert_history_triggered_at ON alert_history(triggered_at)")
+
+            # Investment timeframes table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS investment_timeframes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(50) NOT NULL UNIQUE,
+                    color VARCHAR(7),
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_timeframes_name ON investment_timeframes(name)")
+
+            # Stock_timeframes junction table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS stock_timeframes (
+                    stock_id INTEGER NOT NULL,
+                    timeframe_id INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (stock_id, timeframe_id),
+                    FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE,
+                    FOREIGN KEY (timeframe_id) REFERENCES investment_timeframes(id) ON DELETE CASCADE
+                )
+            """)
+
+            # Insert default timeframes if not exists
+            cursor.execute("SELECT COUNT(*) FROM investment_timeframes")
+            if cursor.fetchone()[0] == 0:
+                default_timeframes = [
+                    ('Long Term', '#10B981', 'Hold for 1+ years'),
+                    ('Medium Term', '#3B82F6', 'Hold for 3-12 months'),
+                    ('Short Term', '#F59E0B', 'Hold for weeks to 3 months'),
+                    ('Swing Trade', '#8B5CF6', 'Hold for days to weeks'),
+                    ('Day Trade', '#EF4444', 'Intraday positions')
+                ]
+                cursor.executemany(
+                    "INSERT INTO investment_timeframes (name, color, description) VALUES (?, ?, ?)",
+                    default_timeframes
+                )
+                logger.info("Default investment timeframes created")
 
             logger.info("Database initialized successfully")
 
@@ -634,6 +674,193 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
+            return cursor.rowcount > 0
+
+    # ==================== TIMEFRAME OPERATIONS ====================
+
+    def get_all_timeframes(self) -> List[Tuple[Timeframe, int]]:
+        """Get all investment timeframes with stock counts.
+
+        Returns:
+            List of (Timeframe, count) tuples
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT t.*, COUNT(st.stock_id) as stock_count
+                FROM investment_timeframes t
+                LEFT JOIN stock_timeframes st ON t.id = st.timeframe_id
+                GROUP BY t.id
+                ORDER BY t.name
+            """)
+
+            results = []
+            for row in cursor.fetchall():
+                timeframe = Timeframe(
+                    id=row['id'],
+                    name=row['name'],
+                    color=row['color'],
+                    description=row['description'],
+                    created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None
+                )
+                results.append((timeframe, row['stock_count']))
+
+            return results
+
+    def get_timeframe_by_id(self, timeframe_id: int) -> Optional[Timeframe]:
+        """Get timeframe by ID.
+
+        Args:
+            timeframe_id: Timeframe ID
+
+        Returns:
+            Timeframe object or None
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM investment_timeframes WHERE id = ?", (timeframe_id,))
+            row = cursor.fetchone()
+
+            if row:
+                return Timeframe(
+                    id=row['id'],
+                    name=row['name'],
+                    color=row['color'],
+                    description=row['description'],
+                    created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None
+                )
+            return None
+
+    def get_timeframes_for_stock(self, stock_id: int) -> List[Timeframe]:
+        """Get all timeframes for a stock.
+
+        Args:
+            stock_id: Stock ID
+
+        Returns:
+            List of Timeframe objects
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT t.* FROM investment_timeframes t
+                JOIN stock_timeframes st ON t.id = st.timeframe_id
+                WHERE st.stock_id = ?
+                ORDER BY t.name
+            """, (stock_id,))
+
+            timeframes = []
+            for row in cursor.fetchall():
+                timeframes.append(Timeframe(
+                    id=row['id'],
+                    name=row['name'],
+                    color=row['color'],
+                    description=row['description'],
+                    created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None
+                ))
+
+            return timeframes
+
+    def add_timeframe_to_stock(self, stock_id: int, timeframe_id: int) -> bool:
+        """Add a timeframe to a stock.
+
+        Args:
+            stock_id: Stock ID
+            timeframe_id: Timeframe ID
+
+        Returns:
+            True if successful
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("INSERT INTO stock_timeframes (stock_id, timeframe_id) VALUES (?, ?)", (stock_id, timeframe_id))
+                return True
+            except sqlite3.IntegrityError:
+                return False  # Already exists
+
+    def remove_timeframe_from_stock(self, stock_id: int, timeframe_id: int) -> bool:
+        """Remove a timeframe from a stock.
+
+        Args:
+            stock_id: Stock ID
+            timeframe_id: Timeframe ID
+
+        Returns:
+            True if successful
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM stock_timeframes WHERE stock_id = ? AND timeframe_id = ?", (stock_id, timeframe_id))
+            return cursor.rowcount > 0
+
+    def create_timeframe(self, name: str, color: Optional[str] = None, description: Optional[str] = None) -> int:
+        """Create a new investment timeframe.
+
+        Args:
+            name: Timeframe name
+            color: Hex color code
+            description: Description
+
+        Returns:
+            ID of created timeframe
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO investment_timeframes (name, color, description) VALUES (?, ?, ?)", (name, color, description))
+            return cursor.lastrowid
+
+    def update_timeframe(self, timeframe_id: int, name: Optional[str] = None, color: Optional[str] = None, description: Optional[str] = None) -> bool:
+        """Update a timeframe.
+
+        Args:
+            timeframe_id: Timeframe ID
+            name: New name
+            color: New color
+            description: New description
+
+        Returns:
+            True if successful
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            updates = []
+            params = []
+
+            if name is not None:
+                updates.append("name = ?")
+                params.append(name)
+
+            if color is not None:
+                updates.append("color = ?")
+                params.append(color)
+
+            if description is not None:
+                updates.append("description = ?")
+                params.append(description)
+
+            if not updates:
+                return False
+
+            params.append(timeframe_id)
+            query = f"UPDATE investment_timeframes SET {', '.join(updates)} WHERE id = ?"
+
+            cursor.execute(query, params)
+            return cursor.rowcount > 0
+
+    def delete_timeframe(self, timeframe_id: int) -> bool:
+        """Delete a timeframe.
+
+        Args:
+            timeframe_id: Timeframe ID
+
+        Returns:
+            True if successful
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM investment_timeframes WHERE id = ?", (timeframe_id,))
             return cursor.rowcount > 0
 
     # ==================== NOTE OPERATIONS ====================

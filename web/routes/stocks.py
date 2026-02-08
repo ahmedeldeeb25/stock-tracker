@@ -337,6 +337,54 @@ def remove_stock_tag(stock_id, tag_id):
         return jsonify({"error": str(e)}), 500
 
 
+@stocks_bp.route('/<int:stock_id>/timeframes', methods=['POST'])
+def add_stock_timeframe(stock_id):
+    """Add a timeframe to a stock.
+
+    Body:
+        {
+            "timeframe_id": 1
+        }
+    """
+    try:
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        data = request.get_json()
+        timeframe_id = data.get('timeframe_id')
+
+        if not timeframe_id:
+            return jsonify({"error": "timeframe_id is required"}), 400
+
+        success = current_app.db_manager.add_timeframe_to_stock(stock_id, timeframe_id)
+
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Timeframe already added or doesn't exist"}), 400
+
+    except Exception as e:
+        logger.error(f"Error adding timeframe to stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>/timeframes/<int:timeframe_id>', methods=['DELETE'])
+def remove_stock_timeframe(stock_id, timeframe_id):
+    """Remove a timeframe from a stock."""
+    try:
+        success = current_app.db_manager.remove_timeframe_from_stock(stock_id, timeframe_id)
+
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Timeframe not found on stock"}), 404
+
+    except Exception as e:
+        logger.error(f"Error removing timeframe from stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
 @stocks_bp.route('/<int:stock_id>/notes', methods=['GET'])
 def get_stock_notes(stock_id):
     """Get all notes for a stock."""

@@ -1,6 +1,6 @@
 # Stock Tracker
 
-A modular Python application that monitors stock prices and sends email notifications when price targets are met.
+A modular Python application that monitors stock prices and sends notifications (Email & Telegram) when price targets are met.
 
 ## Features
 
@@ -10,7 +10,9 @@ A modular Python application that monitors stock prices and sends email notifica
   - Sell/Trim: Alert when price rises above target
 - **SQLite Database**: Persistent storage for stocks, targets, notes, and alert history
 - **Web Interface**: Vue.js frontend with rich text notes and real-time price updates
-- **Email Notifications**: Automated alerts via SMTP
+- **Multi-Channel Notifications**:
+  - 📧 Email notifications via SMTP
+  - 📱 Telegram bot integration for instant mobile alerts
 - **Modular Architecture**: Easy to extend and maintain
 
 ## Project Structure
@@ -30,6 +32,7 @@ stock-tracker/
 │   ├── stock_service.py       # Business logic layer
 │   ├── alert_checker.py       # Alert logic
 │   ├── email_notifier.py      # Email notifications (smtplib)
+│   ├── telegram_notifier.py   # Telegram bot notifications
 │   └── models.py              # Data models
 ├── web/
 │   ├── app.py                 # Flask REST API
@@ -59,7 +62,9 @@ stock-tracker/
 pip install -r requirements.txt
 ```
 
-3. **Configure email settings**:
+3. **Configure notifications**:
+
+   **Email Setup** (Optional):
 
    Option A: Using `.env` file (recommended):
    ```bash
@@ -81,6 +86,22 @@ pip install -r requirements.txt
    ```
 
    **Note for Gmail users**: Use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password.
+
+   **Telegram Setup** (Optional but Recommended):
+
+   1. Create a bot with @BotFather on Telegram
+   2. Get your bot token and chat ID (see [detailed guide](docs/TELEGRAM_SETUP.md))
+   3. Add to your `.env` file:
+   ```bash
+   TELEGRAM_BOT_TOKEN=your-bot-token-here
+   TELEGRAM_CHAT_ID=your-chat-id-here
+   ```
+   4. Test your setup:
+   ```bash
+   python test_telegram.py
+   ```
+
+   📖 **Full Telegram Setup Guide**: See [docs/TELEGRAM_SETUP.md](docs/TELEGRAM_SETUP.md) for detailed instructions.
 
 4. **Add stocks to your watchlist**:
 
