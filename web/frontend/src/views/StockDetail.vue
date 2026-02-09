@@ -127,7 +127,6 @@
 
       <!-- Investment Timeframes -->
       <div class="mb-4">
-        <label class="form-label small text-muted mb-1">Investment Timeframe</label>
         <div v-if="stock.timeframes && stock.timeframes.length" class="d-flex flex-wrap gap-2">
           <button
             v-for="timeframe in stock.timeframes"

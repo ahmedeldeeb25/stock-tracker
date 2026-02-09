@@ -172,18 +172,35 @@ class StockService:
         stocks = self.db.get_all_stocks(tag=tag, search=search)
         results = []
 
+        # Early return if no stocks
+        if not stocks:
+            return results
+
         # Fetch all prices at once if needed
         prices = {}
-        if include_prices and stocks:
+        info_dict = {}  # Store ticker.info for all stocks
+        if include_prices:
             symbols = [s.symbol for s in stocks]
+            # Batch fetch prices using optimized yfinance.download
             prices = self.fetcher.get_multiple_prices(symbols)
+            # Batch fetch ticker.info in parallel (for after-hours + price change)
+            info_dict = self.fetcher.get_multiple_info(symbols)
+
+        # Batch fetch all related data to avoid N+1 queries (HIGH-008 fix)
+        stock_ids = [s.id for s in stocks]
+        targets_batch = self.db.get_targets_for_stocks_batch(stock_ids)
+        tags_batch = self.db.get_tags_for_stocks_batch(stock_ids)
+        timeframes_batch = self.db.get_timeframes_for_stocks_batch(stock_ids)
+        notes_counts = self.db.get_notes_count_for_stocks_batch(stock_ids)
+        latest_alerts = self.db.get_latest_alert_for_stocks_batch(stock_ids)
 
         for stock in stocks:
-            targets = self.db.get_targets_for_stock(stock.id)
-            tags = self.db.get_tags_for_stock(stock.id)
-            timeframes = self.db.get_timeframes_for_stock(stock.id)
-            notes_count = self.db.get_notes_count_for_stock(stock.id)
-            latest_alert = self.db.get_latest_alert_for_stock(stock.id)
+            # Retrieve pre-fetched data from batch results
+            targets = targets_batch.get(stock.id, [])
+            tags = tags_batch.get(stock.id, [])
+            timeframes = timeframes_batch.get(stock.id, [])
+            notes_count = notes_counts.get(stock.id, 0)
+            latest_alert = latest_alerts.get(stock.id)
 
             stock_dict = {
                 "id": stock.id,
@@ -214,20 +231,29 @@ class StockService:
                     for target_dict in stock_dict["targets"]:
                         target_dict.update(self._calculate_target_status(current_price, target_dict))
 
-                # Fetch after-hours price
-                after_hours = self.fetcher.get_after_hours_price(stock.symbol)
-                if after_hours:
-                    stock_dict["after_hours"] = after_hours
+                # Extract after-hours and price change from batch-fetched info
+                info = info_dict.get(stock.symbol)
+                if info:
+                    # Extract after-hours data
+                    if 'postMarketPrice' in info and info['postMarketPrice']:
+                        stock_dict["after_hours"] = {
+                            'price': float(info['postMarketPrice']),
+                            'change': float(info.get('postMarketChange', 0)),
+                            'change_percent': float(info.get('postMarketChangePercent', 0)),
+                            'time': info.get('postMarketTime', '')
+                        }
+                    elif 'preMarketPrice' in info and info['preMarketPrice']:
+                        stock_dict["after_hours"] = {
+                            'price': float(info['preMarketPrice']),
+                            'change': float(info.get('preMarketChange', 0)),
+                            'change_percent': float(info.get('preMarketChangePercent', 0)),
+                            'time': info.get('preMarketTime', ''),
+                            'is_premarket': True
+                        }
 
-                # Get daily price change from yfinance
-                try:
-                    import yfinance as yf
-                    ticker = yf.Ticker(stock.symbol)
-                    info = ticker.info
-                    if info and 'regularMarketChangePercent' in info:
+                    # Extract daily price change
+                    if 'regularMarketChangePercent' in info:
                         stock_dict["price_change_percent"] = info['regularMarketChangePercent']
-                except Exception:
-                    pass
 
             results.append(stock_dict)
 

@@ -1105,3 +1105,209 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM alert_history WHERE id = ?", (alert_id,))
             return cursor.rowcount > 0
+
+    # ============================================================================
+    # BATCH QUERY METHODS (to prevent N+1 query problems)
+    # ============================================================================
+
+    def get_targets_for_stocks_batch(self, stock_ids: List[int], active_only: bool = False) -> Dict[int, List[Target]]:
+        """Get targets for multiple stocks in a single query.
+
+        Args:
+            stock_ids: List of stock IDs
+            active_only: Only return active targets
+
+        Returns:
+            Dictionary mapping stock_id to list of Target objects
+        """
+        if not stock_ids:
+            return {}
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            placeholders = ','.join('?' * len(stock_ids))
+            query = f"SELECT * FROM targets WHERE stock_id IN ({placeholders})"
+            params = stock_ids
+
+            if active_only:
+                query += " AND is_active = 1"
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+
+            # Group targets by stock_id
+            result = {stock_id: [] for stock_id in stock_ids}
+            for row in rows:
+                target = Target(
+                    id=row['id'],
+                    stock_id=row['stock_id'],
+                    target_type=row['target_type'],
+                    target_price=row['target_price'],
+                    trim_percentage=row['trim_percentage'],
+                    alert_note=row['alert_note'],
+                    is_active=bool(row['is_active']),
+                    created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None
+                )
+                result[target.stock_id].append(target)
+
+            return result
+
+    def get_tags_for_stocks_batch(self, stock_ids: List[int]) -> Dict[int, List[Tag]]:
+        """Get tags for multiple stocks in a single query.
+
+        Args:
+            stock_ids: List of stock IDs
+
+        Returns:
+            Dictionary mapping stock_id to list of Tag objects
+        """
+        if not stock_ids:
+            return {}
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            placeholders = ','.join('?' * len(stock_ids))
+            query = f"""
+                SELECT st.stock_id, t.*
+                FROM stock_tags st
+                JOIN tags t ON st.tag_id = t.id
+                WHERE st.stock_id IN ({placeholders})
+            """
+
+            cursor.execute(query, stock_ids)
+            rows = cursor.fetchall()
+
+            # Group tags by stock_id
+            result = {stock_id: [] for stock_id in stock_ids}
+            for row in rows:
+                tag = Tag(
+                    id=row['id'],
+                    name=row['name'],
+                    color=row['color'],
+                    created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None
+                )
+                result[row['stock_id']].append(tag)
+
+            return result
+
+    def get_timeframes_for_stocks_batch(self, stock_ids: List[int]) -> Dict[int, List[Timeframe]]:
+        """Get timeframes for multiple stocks in a single query.
+
+        Args:
+            stock_ids: List of stock IDs
+
+        Returns:
+            Dictionary mapping stock_id to list of Timeframe objects
+        """
+        if not stock_ids:
+            return {}
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            placeholders = ','.join('?' * len(stock_ids))
+            query = f"""
+                SELECT st.stock_id, tf.*
+                FROM stock_timeframes st
+                JOIN investment_timeframes tf ON st.timeframe_id = tf.id
+                WHERE st.stock_id IN ({placeholders})
+            """
+
+            cursor.execute(query, stock_ids)
+            rows = cursor.fetchall()
+
+            # Group timeframes by stock_id
+            result = {stock_id: [] for stock_id in stock_ids}
+            for row in rows:
+                timeframe = Timeframe(
+                    id=row['id'],
+                    name=row['name'],
+                    color=row['color'],
+                    description=row['description'],
+                    created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None
+                )
+                result[row['stock_id']].append(timeframe)
+
+            return result
+
+    def get_notes_count_for_stocks_batch(self, stock_ids: List[int]) -> Dict[int, int]:
+        """Get notes count for multiple stocks in a single query.
+
+        Args:
+            stock_ids: List of stock IDs
+
+        Returns:
+            Dictionary mapping stock_id to notes count
+        """
+        if not stock_ids:
+            return {}
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            placeholders = ','.join('?' * len(stock_ids))
+            query = f"""
+                SELECT stock_id, COUNT(*) as count
+                FROM notes
+                WHERE stock_id IN ({placeholders})
+                GROUP BY stock_id
+            """
+
+            cursor.execute(query, stock_ids)
+            rows = cursor.fetchall()
+
+            # Initialize all stock_ids with 0, then update with actual counts
+            result = {stock_id: 0 for stock_id in stock_ids}
+            for row in rows:
+                result[row['stock_id']] = row['count']
+
+            return result
+
+    def get_latest_alert_for_stocks_batch(self, stock_ids: List[int]) -> Dict[int, Optional[AlertHistory]]:
+        """Get latest alert for multiple stocks in a single query.
+
+        Args:
+            stock_ids: List of stock IDs
+
+        Returns:
+            Dictionary mapping stock_id to latest AlertHistory object (or None)
+        """
+        if not stock_ids:
+            return {}
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            placeholders = ','.join('?' * len(stock_ids))
+            query = f"""
+                SELECT ah1.*
+                FROM alert_history ah1
+                INNER JOIN (
+                    SELECT stock_id, MAX(triggered_at) as max_triggered
+                    FROM alert_history
+                    WHERE stock_id IN ({placeholders})
+                    GROUP BY stock_id
+                ) ah2 ON ah1.stock_id = ah2.stock_id
+                    AND ah1.triggered_at = ah2.max_triggered
+            """
+
+            cursor.execute(query, stock_ids)
+            rows = cursor.fetchall()
+
+            # Initialize all stock_ids with None
+            result = {stock_id: None for stock_id in stock_ids}
+            for row in rows:
+                alert = AlertHistory(
+                    id=row['id'],
+                    stock_id=row['stock_id'],
+                    target_type=row['target_type'],
+                    target_price=row['target_price'],
+                    triggered_price=row['triggered_price'],
+                    triggered_at=datetime.fromisoformat(row['triggered_at']) if row['triggered_at'] else None,
+                    alert_note=row['alert_note']
+                )
+                result[alert.stock_id] = alert
+
+            return result

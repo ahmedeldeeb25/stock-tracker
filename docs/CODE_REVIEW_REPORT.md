@@ -13,8 +13,13 @@
 - ✅ **[CRITICAL-001]** XSS Vulnerability - Fixed on February 8, 2026
   - Added DOMPurify HTML sanitization to ViewNoteModal.vue
   - All user-generated HTML content is now sanitized before rendering
+- ✅ **[HIGH-008]** N+1 Query Problem in Stock List - Fixed on February 8, 2026
+  - Implemented batch query methods in DatabaseManager
+  - Reduced database queries from 1+5N to just 6 queries
+  - 97.6% query reduction for typical workloads
 
 **Remaining Critical Issues**: 2
+**Remaining High Priority Issues**: 7
 
 ---
 
@@ -25,7 +30,7 @@ The Stock Tracker application is a well-structured full-stack application with a
 The most critical findings relate to **XSS vulnerabilities** in the frontend (using `v-html` with unsanitized content) [✅ FIXED], **missing authentication/authorization** on all API endpoints, and **overly permissive CORS configuration**. The application also lacks input validation on several API endpoints and has a large database manager file that should be refactored for maintainability.
 
 **Critical findings**: 3 (1 resolved, 2 remaining)
-**High priority findings**: 8
+**High priority findings**: 8 (1 resolved, 7 remaining)
 **Medium priority findings**: 9
 **Approval status**: **Needs Work** - Critical security issues must be addressed before production use.
 
@@ -390,13 +395,16 @@ def get_alert_history_with_symbols(self, stock_id=None, limit=50, offset=0):
 
 ---
 
-### [HIGH-008] N+1 Query Problem in Stock List
+### [HIGH-008] ✅ RESOLVED - N+1 Query Problem in Stock List
 
 **File**: `/src/stock_service.py:181-186`
 **Severity**: High
-**Issue**: When fetching all stocks with details, multiple queries are made per stock (targets, tags, timeframes, notes_count, latest_alert).
+**Status**: ✅ **FIXED** on February 8, 2026
+**Issue**: When fetching all stocks with details, multiple queries were made per stock (targets, tags, timeframes, notes_count, latest_alert). With N stocks, this resulted in 1+5N database queries.
 
-**Current Code**:
+**Impact**: With 50 stocks, this resulted in 251 database queries instead of 6 optimized queries. Poor performance and excessive database load.
+
+**Original Code**:
 ```python
 for stock in stocks:
     targets = self.db.get_targets_for_stock(stock.id)  # N queries
@@ -406,24 +414,38 @@ for stock in stocks:
     latest_alert = self.db.get_latest_alert_for_stock(stock.id)  # N queries
 ```
 
-**Impact**: With 50 stocks, this results in 250+ database queries instead of ~5-6 optimized queries.
+**Fix Applied**: Implemented 5 new batch query methods in DatabaseManager:
+1. `get_targets_for_stocks_batch(stock_ids)` - Fetch all targets in one query
+2. `get_tags_for_stocks_batch(stock_ids)` - Fetch all tags with JOIN in one query
+3. `get_timeframes_for_stocks_batch(stock_ids)` - Fetch all timeframes with JOIN
+4. `get_notes_count_for_stocks_batch(stock_ids)` - Count notes with GROUP BY
+5. `get_latest_alert_for_stocks_batch(stock_ids)` - Fetch latest alerts with subquery
 
-**Fix**: Implement batch loading or use JOINs.
-
+**Fixed Code** (`/src/stock_service.py`):
 ```python
-def get_all_stocks_with_details_optimized(self, tag=None, search=None):
-    # Single query with all data using JOINs and subqueries
-    query = """
-        SELECT s.*,
-               GROUP_CONCAT(DISTINCT t.name || ':' || t.color) as tags,
-               COUNT(DISTINCT n.id) as notes_count
-        FROM stocks s
-        LEFT JOIN stock_tags st ON s.id = st.stock_id
-        LEFT JOIN tags t ON st.tag_id = t.id
-        LEFT JOIN notes n ON s.id = n.stock_id
-        GROUP BY s.id
-    """
+# Batch fetch all related data to avoid N+1 queries (HIGH-008 fix)
+stock_ids = [s.id for s in stocks]
+targets_batch = self.db.get_targets_for_stocks_batch(stock_ids)
+tags_batch = self.db.get_tags_for_stocks_batch(stock_ids)
+timeframes_batch = self.db.get_timeframes_for_stocks_batch(stock_ids)
+notes_counts = self.db.get_notes_count_for_stocks_batch(stock_ids)
+latest_alerts = self.db.get_latest_alert_for_stocks_batch(stock_ids)
+
+for stock in stocks:
+    # Retrieve pre-fetched data from batch results
+    targets = targets_batch.get(stock.id, [])
+    tags = tags_batch.get(stock.id, [])
+    timeframes = timeframes_batch.get(stock.id, [])
+    notes_count = notes_counts.get(stock.id, 0)
+    latest_alert = latest_alerts.get(stock.id)
 ```
+
+**Performance Improvement**:
+- Before: 1 + 5×N queries (e.g., 251 queries for 50 stocks)
+- After: 1 + 5 = 6 queries (regardless of N)
+- **97.6% reduction in database queries for typical workloads**
+
+**Verification**: Python syntax validated successfully.
 
 ---
 

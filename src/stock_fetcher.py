@@ -4,12 +4,56 @@ import yfinance as yf
 from typing import Dict, Optional
 import logging
 import pandas as pd
+import concurrent.futures
+import time
 
 logger = logging.getLogger(__name__)
 
 
 class StockFetcher:
-    """Fetches current stock prices using yfinance."""
+    """Fetches current stock prices using yfinance with caching."""
+
+    def __init__(self, cache_ttl: int = 60):
+        """Initialize stock fetcher with cache.
+
+        Args:
+            cache_ttl: Cache time-to-live in seconds (default 60)
+        """
+        self._cache = {}
+        self._cache_ttl = cache_ttl
+        logger.info(f"StockFetcher initialized with {cache_ttl}s cache TTL")
+
+    def _get_cached_or_fetch(self, key: str, fetch_func, ttl: int = None):
+        """Generic cache wrapper.
+
+        Args:
+            key: Cache key
+            fetch_func: Function to call if cache miss
+            ttl: Optional override for cache TTL
+
+        Returns:
+            Cached or freshly fetched data
+        """
+        ttl = ttl or self._cache_ttl
+        now = time.time()
+
+        # Check cache
+        if key in self._cache:
+            cached_data, timestamp = self._cache[key]
+            if now - timestamp < ttl:
+                logger.debug(f"Cache hit for {key}")
+                return cached_data
+
+        # Cache miss - fetch fresh data
+        logger.debug(f"Cache miss for {key}, fetching...")
+        data = fetch_func()
+        self._cache[key] = (data, now)
+        return data
+
+    def clear_cache(self):
+        """Clear all cached data."""
+        self._cache.clear()
+        logger.info("Cache cleared")
 
     def get_current_price(self, symbol: str) -> Optional[float]:
         """Get the current price for a stock symbol.
@@ -133,7 +177,7 @@ class StockFetcher:
             return None
 
     def get_multiple_prices(self, symbols: list) -> Dict[str, Optional[float]]:
-        """Get current prices for multiple stocks.
+        """Get current prices for multiple stocks using batch download with caching.
 
         Args:
             symbols: List of stock ticker symbols
@@ -141,10 +185,116 @@ class StockFetcher:
         Returns:
             Dictionary mapping symbols to prices
         """
-        prices = {}
-        for symbol in symbols:
-            prices[symbol] = self.get_current_price(symbol)
-        return prices
+        if not symbols:
+            return {}
+
+        # Create cache key from sorted symbols
+        cache_key = f"prices_{'_'.join(sorted(symbols))}"
+
+        def fetch_prices():
+            try:
+                # Use yfinance.download for faster batch fetching
+                logger.info(f"Fetching prices for {len(symbols)} stocks in batch...")
+                data = yf.download(
+                    tickers=' '.join(symbols),
+                    period='1d',
+                    group_by='ticker',
+                    threads=True,  # Enable multi-threading
+                    progress=False,
+                    show_errors=False
+                )
+
+                prices = {}
+                for symbol in symbols:
+                    try:
+                        if len(symbols) == 1:
+                            # Single ticker returns different structure
+                            if not data.empty and 'Close' in data:
+                                prices[symbol] = float(data['Close'].iloc[-1])
+                            else:
+                                prices[symbol] = None
+                        else:
+                            # Multiple tickers
+                            if symbol in data and not data[symbol].empty:
+                                prices[symbol] = float(data[symbol]['Close'].iloc[-1])
+                            else:
+                                logger.warning(f"No data for {symbol}")
+                                prices[symbol] = None
+                    except Exception as e:
+                        logger.warning(f"Error processing {symbol}: {e}")
+                        prices[symbol] = None
+
+                logger.info(f"Batch fetch completed: {len([p for p in prices.values() if p])} successful")
+                return prices
+
+            except Exception as e:
+                logger.error(f"Error in batch download: {e}")
+                # Fallback to individual fetching
+                logger.info("Falling back to sequential fetching...")
+                prices = {}
+                for symbol in symbols:
+                    prices[symbol] = self.get_current_price(symbol)
+                return prices
+
+        return self._get_cached_or_fetch(cache_key, fetch_prices, ttl=60)
+
+    def get_multiple_info(self, symbols: list) -> Dict[str, Optional[dict]]:
+        """Get ticker.info for multiple stocks in parallel with caching.
+
+        This is much faster than calling get_after_hours_price() or ticker.info
+        sequentially for each stock. Use this when you need info for multiple stocks.
+
+        Args:
+            symbols: List of stock ticker symbols
+
+        Returns:
+            Dictionary mapping symbols to ticker.info dictionaries
+        """
+        if not symbols:
+            return {}
+
+        # Create cache key from sorted symbols
+        cache_key = f"info_{'_'.join(sorted(symbols))}"
+
+        def fetch_info():
+            logger.info(f"Fetching ticker info for {len(symbols)} stocks in parallel...")
+
+            def fetch_single_info(symbol: str) -> tuple:
+                """Fetch info for a single symbol."""
+                try:
+                    ticker = yf.Ticker(symbol)
+                    info = ticker.info
+                    if info and isinstance(info, dict):
+                        return (symbol, info)
+                    else:
+                        logger.warning(f"No valid info for {symbol}")
+                        return (symbol, None)
+                except Exception as e:
+                    logger.error(f"Error fetching info for {symbol}: {e}")
+                    return (symbol, None)
+
+            # Fetch all in parallel using ThreadPoolExecutor
+            info_dict = {}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_symbol = {
+                    executor.submit(fetch_single_info, symbol): symbol
+                    for symbol in symbols
+                }
+
+                for future in concurrent.futures.as_completed(future_to_symbol):
+                    try:
+                        symbol, info = future.result()
+                        info_dict[symbol] = info
+                    except Exception as e:
+                        symbol = future_to_symbol[future]
+                        logger.error(f"Error processing info for {symbol}: {e}")
+                        info_dict[symbol] = None
+
+            successful = len([i for i in info_dict.values() if i])
+            logger.info(f"Info fetch completed: {successful}/{len(symbols)} successful")
+            return info_dict
+
+        return self._get_cached_or_fetch(cache_key, fetch_info, ttl=60)
 
     def get_after_hours_price(self, symbol: str) -> Optional[Dict[str, float]]:
         """Get after-hours price information for a stock.

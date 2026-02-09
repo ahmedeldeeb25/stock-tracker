@@ -25,7 +25,8 @@
       "Bash(kill:*)",
       "Bash(grep:*)",
       "Bash(wc:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(git log:*)"
     ]
   }
 }
