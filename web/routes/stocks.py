@@ -8,6 +8,92 @@ logger = logging.getLogger(__name__)
 stocks_bp = Blueprint('stocks', __name__)
 
 
+@stocks_bp.route('/search', methods=['GET'])
+def search_symbols():
+    """Search for stock symbols using Yahoo Finance.
+
+    Query Params:
+        q: Search query (required)
+        limit: Maximum results (default: 10)
+
+    Returns:
+        List of matching symbols with name and exchange
+    """
+    try:
+        query = request.args.get('q', '').strip()
+        limit = int(request.args.get('limit', 10))
+
+        if not query:
+            return jsonify({"results": []})
+
+        results = current_app.stock_fetcher.search_symbols(query, limit)
+        return jsonify({"results": results})
+
+    except Exception as e:
+        logger.error(f"Error searching symbols: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/validate/<symbol>', methods=['GET'])
+def validate_symbol(symbol):
+    """Validate if a stock symbol exists and get basic info.
+
+    Returns:
+        Symbol info if valid, error if invalid
+    """
+    try:
+        # Check if symbol already exists in our database
+        existing = current_app.db_manager.get_stock_by_symbol(symbol.upper())
+        if existing:
+            return jsonify({
+                "valid": True,
+                "exists_in_db": True,
+                "symbol": existing.symbol,
+                "name": existing.company_name,
+                "message": f"{symbol.upper()} is already in your watchlist"
+            })
+
+        # Validate with Yahoo Finance
+        result = current_app.stock_fetcher.validate_symbol(symbol)
+        if result:
+            return jsonify({
+                "valid": True,
+                "exists_in_db": False,
+                "symbol": result["symbol"],
+                "name": result["name"],
+                "exchange": result["exchange"],
+                "type": result["type"]
+            })
+        else:
+            return jsonify({
+                "valid": False,
+                "message": f"Symbol '{symbol.upper()}' not found"
+            }), 404
+
+    except Exception as e:
+        logger.error(f"Error validating symbol {symbol}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/check/<symbol>', methods=['GET'])
+def check_symbol_exists(symbol):
+    """Check if a stock symbol exists in our database.
+
+    Returns:
+        exists: true/false
+    """
+    try:
+        existing = current_app.db_manager.get_stock_by_symbol(symbol.upper())
+        return jsonify({
+            "exists": existing is not None,
+            "symbol": symbol.upper()
+        })
+
+    except Exception as e:
+        logger.error(f"Error checking symbol {symbol}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
 @stocks_bp.route('', methods=['GET'])
 def get_stocks():
     """Get all stocks with optional filters.
@@ -104,13 +190,10 @@ def create_stock():
         if not data.get('symbol'):
             return jsonify({"error": "Symbol is required"}), 400
 
-        if not data.get('targets'):
-            return jsonify({"error": "At least one target is required"}), 400
-
         result = current_app.stock_service.create_stock_with_targets(
             symbol=data['symbol'],
             company_name=data.get('company_name'),
-            targets=data['targets'],
+            targets=data.get('targets', []),
             tags=data.get('tags', [])
         )
 

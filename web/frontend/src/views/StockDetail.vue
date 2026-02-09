@@ -600,6 +600,15 @@ export default {
       }
     }
 
+    // Silent refresh - updates data without showing skeleton or reloading chart
+    const refreshStock = async () => {
+      try {
+        await stocksStore.refreshStockDetails(symbol)
+      } catch (error) {
+        console.error('Failed to refresh stock:', error)
+      }
+    }
+
     const refreshData = () => {
       loadStock()
     }
@@ -613,7 +622,7 @@ export default {
         const response = await stocksApi.fetchInfo(stock.value.id)
         if (response.data.company_name) {
           // Refresh stock data to show updated name
-          await loadStock()
+          await refreshStock()
           toast.success('Company information fetched successfully')
         }
       } catch (error) {
@@ -638,7 +647,7 @@ export default {
     const toggleTarget = async (target) => {
       try {
         await targetsApi.toggle(target.id)
-        loadStock()
+        await refreshStock()
         toast.success(`Target ${target.is_active ? 'deactivated' : 'activated'}`)
       } catch (error) {
         toast.error('Failed to toggle target: ' + (error.response?.data?.error || error.message))
@@ -646,19 +655,19 @@ export default {
     }
 
     const handleTargetAdded = () => {
-      loadStock()
+      refreshStock()
       selectedTarget.value = null
       toast.success('Target added successfully')
     }
 
     const handleTargetUpdated = () => {
-      loadStock()
+      refreshStock()
       selectedTarget.value = null
       toast.success('Target updated successfully')
     }
 
     const handleTargetDeleted = () => {
-      loadStock()
+      refreshStock()
       selectedTarget.value = null
       toast.success('Target deleted successfully')
     }
@@ -692,20 +701,20 @@ export default {
     }
 
     const handleNoteAdded = () => {
-      loadStock()
+      refreshStock()
       editingNote.value = null
       toast.success('Note added successfully')
     }
 
     const handleNoteUpdated = () => {
-      loadStock()
+      refreshStock()
       editingNote.value = null
       selectedNote.value = null
       toast.success('Note updated successfully')
     }
 
     const handleNoteDeleted = () => {
-      loadStock()
+      refreshStock()
       selectedNote.value = null
       toast.success('Note deleted successfully')
     }
@@ -717,7 +726,7 @@ export default {
     }
 
     const handleTagsUpdated = () => {
-      loadStock()
+      refreshStock()
       toast.success('Tags updated successfully')
     }
 
@@ -728,7 +737,7 @@ export default {
     }
 
     const handleTimeframesUpdated = () => {
-      loadStock()
+      refreshStock()
       toast.success('Timeframes updated successfully')
     }
 
@@ -739,12 +748,12 @@ export default {
     }
 
     const handleHoldingUpdated = () => {
-      loadStock()
+      refreshStock()
       toast.success('Holdings updated successfully')
     }
 
     const handleHoldingDeleted = () => {
-      loadStock()
+      refreshStock()
       toast.success('Holdings deleted successfully')
     }
 

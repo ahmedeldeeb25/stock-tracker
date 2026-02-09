@@ -11,6 +11,21 @@ export const stocksApi = {
     return client.get(`/stocks/${symbol}`)
   },
 
+  // Search for symbols (autocomplete)
+  search(query, limit = 10) {
+    return client.get('/stocks/search', { params: { q: query, limit } })
+  },
+
+  // Validate a symbol (check if it exists on Yahoo Finance)
+  validate(symbol) {
+    return client.get(`/stocks/validate/${symbol}`)
+  },
+
+  // Check if a symbol exists in our database
+  checkExists(symbol) {
+    return client.get(`/stocks/check/${symbol}`)
+  },
+
   // Create stock
   create(data) {
     return client.post('/stocks', data)
@@ -162,6 +177,11 @@ export const pricesApi = {
   // Get batch prices
   getBatch(symbols) {
     return client.post('/prices/batch', { symbols })
+  },
+
+  // Get market overview (indices, VIX, fear/greed)
+  getMarketOverview() {
+    return client.get('/prices/market-overview')
   }
 }
 

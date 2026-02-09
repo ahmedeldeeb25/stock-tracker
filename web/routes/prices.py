@@ -8,6 +8,18 @@ logger = logging.getLogger(__name__)
 prices_bp = Blueprint('prices', __name__)
 
 
+@prices_bp.route('/market-overview', methods=['GET'])
+def get_market_overview():
+    """Get market overview data including indices, VIX, and sentiment indicators."""
+    try:
+        data = current_app.stock_fetcher.get_market_overview()
+        return jsonify(data)
+
+    except Exception as e:
+        logger.error(f"Error fetching market overview: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
 @prices_bp.route('/<symbol>', methods=['GET'])
 def get_price(symbol):
     """Get current price for a symbol."""

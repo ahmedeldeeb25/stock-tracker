@@ -8,21 +8,70 @@
         </div>
         <div class="modal-body">
           <form @submit.prevent="handleSubmit">
-            <!-- Symbol -->
-            <div class="mb-3">
+            <!-- Symbol with Autocomplete -->
+            <div class="mb-3 position-relative">
               <label for="stockSymbol" class="form-label">
                 Symbol <span class="text-danger">*</span>
               </label>
-              <input
-                id="stockSymbol"
-                type="text"
-                class="form-control"
-                v-model="formData.symbol"
-                placeholder="AAPL"
-                required
-                aria-required="true"
-                style="text-transform: uppercase"
+              <div class="position-relative">
+                <input
+                  id="stockSymbol"
+                  type="text"
+                  class="form-control"
+                  :class="{
+                    'is-invalid': symbolError,
+                    'is-valid': symbolValidated && !symbolError
+                  }"
+                  v-model="formData.symbol"
+                  @input="handleSymbolInput"
+                  @focus="showSuggestions = true"
+                  @blur="hideSuggestionsDelayed"
+                  @keydown.down.prevent="navigateSuggestion(1)"
+                  @keydown.up.prevent="navigateSuggestion(-1)"
+                  @keydown.enter.prevent="selectHighlightedSuggestion"
+                  @keydown.escape="showSuggestions = false"
+                  placeholder="Search for a stock..."
+                  required
+                  aria-required="true"
+                  autocomplete="off"
+                  style="text-transform: uppercase"
+                >
+                <div v-if="searchingSymbol" class="position-absolute" style="right: 10px; top: 50%; transform: translateY(-50%);">
+                  <span class="spinner-border spinner-border-sm text-muted"></span>
+                </div>
+              </div>
+
+              <!-- Suggestions Dropdown -->
+              <div
+                v-if="showSuggestions && suggestions.length > 0"
+                class="suggestions-dropdown"
               >
+                <div
+                  v-for="(suggestion, index) in suggestions"
+                  :key="suggestion.symbol"
+                  class="suggestion-item"
+                  :class="{ 'highlighted': index === highlightedIndex }"
+                  @mousedown.prevent="selectSuggestion(suggestion)"
+                  @mouseenter="highlightedIndex = index"
+                >
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>{{ suggestion.symbol }}</strong>
+                      <span class="text-muted ms-2">{{ suggestion.name }}</span>
+                    </div>
+                    <small class="text-muted">{{ suggestion.exchange }}</small>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Validation Feedback -->
+              <div v-if="symbolError" class="invalid-feedback d-block">
+                {{ symbolError }}
+              </div>
+              <div v-else-if="symbolValidated && validatedSymbolInfo" class="valid-feedback d-block">
+                <i class="bi bi-check-circle me-1"></i>
+                {{ validatedSymbolInfo.name || formData.symbol.toUpperCase() }}
+              </div>
             </div>
 
             <!-- Company Name -->
@@ -86,7 +135,7 @@
             <!-- Targets -->
             <div class="mb-3">
               <label class="form-label">
-                Price Targets <span class="text-danger">*</span>
+                Price Targets <span class="text-muted small">(optional)</span>
               </label>
               <div
                 v-for="(target, index) in formData.targets"
@@ -101,8 +150,6 @@
                         :id="`targetType${index}`"
                         class="form-select"
                         v-model="target.target_type"
-                        required
-                        aria-required="true"
                       >
                         <option value="Buy">Buy</option>
                         <option value="Sell">Sell</option>
@@ -119,8 +166,6 @@
                         class="form-control"
                         v-model.number="target.target_price"
                         placeholder="Price"
-                        required
-                        aria-required="true"
                       >
                     </div>
                     <div class="col-12 col-md-2" v-if="target.target_type === 'Trim'">
@@ -149,7 +194,6 @@
                         type="button"
                         class="btn btn-outline-danger"
                         @click="removeTarget(index)"
-                        v-if="formData.targets.length > 1"
                         :aria-label="`Remove target ${index + 1}`"
                       >
                         <i class="bi bi-trash" aria-hidden="true"></i>
@@ -171,7 +215,11 @@
 
             <!-- Submit Button -->
             <div class="d-grid">
-              <button type="submit" class="btn btn-primary" :disabled="submitting">
+              <button
+                type="submit"
+                class="btn btn-primary"
+                :disabled="submitting || symbolError || !formData.symbol.trim()"
+              >
                 <span v-if="submitting" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
                 {{ submitting ? 'Adding...' : 'Add Stock' }}
               </button>
@@ -184,10 +232,11 @@
 </template>
 
 <script>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStocksStore } from '@/stores/stocks'
 import { useToastStore } from '@/stores/toast'
+import { stocksApi } from '@/api'
 
 export default {
   name: 'AddStockModal',
@@ -201,19 +250,132 @@ export default {
       symbol: '',
       company_name: '',
       tags: [],
-      targets: [
-        {
-          target_type: 'Buy',
-          target_price: null,
-          trim_percentage: null,
-          alert_note: ''
-        }
-      ]
+      targets: []
     })
 
     const newTag = ref('')
     const submitting = ref(false)
     const errorMessage = ref('')
+
+    // Autocomplete state
+    const suggestions = ref([])
+    const showSuggestions = ref(false)
+    const highlightedIndex = ref(-1)
+    const searchingSymbol = ref(false)
+    const symbolError = ref('')
+    const symbolValidated = ref(false)
+    const validatedSymbolInfo = ref(null)
+    let searchTimeout = null
+    let validateTimeout = null
+    let lastAutoFilledSymbol = null
+
+    const handleSymbolInput = () => {
+      const symbol = formData.value.symbol.trim().toUpperCase()
+
+      // Reset validation state
+      symbolError.value = ''
+      symbolValidated.value = false
+      validatedSymbolInfo.value = null
+      highlightedIndex.value = -1
+
+      // Clear company name if symbol changed from what was auto-filled
+      if (lastAutoFilledSymbol && symbol !== lastAutoFilledSymbol) {
+        formData.value.company_name = ''
+        lastAutoFilledSymbol = null
+      }
+
+      // Clear previous timeouts
+      if (searchTimeout) clearTimeout(searchTimeout)
+      if (validateTimeout) clearTimeout(validateTimeout)
+
+      if (!symbol || symbol.length < 1) {
+        suggestions.value = []
+        formData.value.company_name = ''
+        return
+      }
+
+      // Debounce search
+      searchingSymbol.value = true
+      searchTimeout = setTimeout(async () => {
+        try {
+          const response = await stocksApi.search(symbol, 8)
+          suggestions.value = response.data.results || []
+        } catch (error) {
+          console.error('Search error:', error)
+          suggestions.value = []
+        } finally {
+          searchingSymbol.value = false
+        }
+      }, 300)
+
+      // Debounce validation (slightly longer delay)
+      validateTimeout = setTimeout(async () => {
+        await validateSymbol(symbol)
+      }, 500)
+    }
+
+    const validateSymbol = async (symbol) => {
+      if (!symbol) return
+
+      try {
+        const response = await stocksApi.validate(symbol)
+        const data = response.data
+
+        if (data.exists_in_db) {
+          symbolError.value = data.message || `${symbol} is already in your watchlist`
+          symbolValidated.value = false
+        } else if (data.valid) {
+          symbolValidated.value = true
+          validatedSymbolInfo.value = data
+          // Auto-fill company name if empty
+          if (!formData.value.company_name && data.name) {
+            formData.value.company_name = data.name
+            lastAutoFilledSymbol = symbol
+          }
+        }
+      } catch (error) {
+        if (error.response?.status === 404) {
+          symbolError.value = `Symbol '${symbol}' not found`
+        }
+        symbolValidated.value = false
+      }
+    }
+
+    const selectSuggestion = (suggestion) => {
+      formData.value.symbol = suggestion.symbol
+      formData.value.company_name = suggestion.name
+      lastAutoFilledSymbol = suggestion.symbol
+      suggestions.value = []
+      showSuggestions.value = false
+      highlightedIndex.value = -1
+
+      // Validate the selected symbol
+      validateSymbol(suggestion.symbol)
+    }
+
+    const navigateSuggestion = (direction) => {
+      if (!showSuggestions.value || suggestions.value.length === 0) return
+
+      highlightedIndex.value += direction
+      if (highlightedIndex.value < 0) {
+        highlightedIndex.value = suggestions.value.length - 1
+      } else if (highlightedIndex.value >= suggestions.value.length) {
+        highlightedIndex.value = 0
+      }
+    }
+
+    const selectHighlightedSuggestion = () => {
+      if (highlightedIndex.value >= 0 && highlightedIndex.value < suggestions.value.length) {
+        selectSuggestion(suggestions.value[highlightedIndex.value])
+      }
+    }
+
+    const hideSuggestionsDelayed = () => {
+      // Delay to allow click on suggestion
+      setTimeout(() => {
+        showSuggestions.value = false
+      }, 200)
+    }
 
     const addTag = () => {
       if (newTag.value.trim() && !formData.value.tags.includes(newTag.value.trim())) {
@@ -244,31 +406,36 @@ export default {
         symbol: '',
         company_name: '',
         tags: [],
-        targets: [
-          {
-            target_type: 'Buy',
-            target_price: null,
-            trim_percentage: null,
-            alert_note: ''
-          }
-        ]
+        targets: []
       }
       errorMessage.value = ''
+      symbolError.value = ''
+      symbolValidated.value = false
+      validatedSymbolInfo.value = null
+      suggestions.value = []
+      showSuggestions.value = false
+      highlightedIndex.value = -1
+      lastAutoFilledSymbol = null
     }
 
     const handleSubmit = async () => {
+      // Check for validation errors
+      if (symbolError.value) {
+        toast.error(symbolError.value)
+        return
+      }
+
+      if (!formData.value.symbol.trim()) {
+        errorMessage.value = 'Symbol is required'
+        return
+      }
+
       submitting.value = true
       errorMessage.value = ''
 
       try {
-        // Validate targets
+        // Filter to only include targets with prices
         const validTargets = formData.value.targets.filter(t => t.target_price)
-
-        if (validTargets.length === 0) {
-          errorMessage.value = 'At least one target with a price is required'
-          submitting.value = false
-          return
-        }
 
         await stocksStore.createStock({
           ...formData.value,
@@ -302,6 +469,18 @@ export default {
       newTag,
       submitting,
       errorMessage,
+      suggestions,
+      showSuggestions,
+      highlightedIndex,
+      searchingSymbol,
+      symbolError,
+      symbolValidated,
+      validatedSymbolInfo,
+      handleSymbolInput,
+      selectSuggestion,
+      navigateSuggestion,
+      selectHighlightedSuggestion,
+      hideSuggestionsDelayed,
       addTag,
       removeTag,
       addTarget,
@@ -311,3 +490,38 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1050;
+}
+
+.suggestion-item {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover,
+.suggestion-item.highlighted {
+  background-color: #f8f9fa;
+}
+
+.suggestion-item.highlighted {
+  background-color: #e9ecef;
+}
+</style>

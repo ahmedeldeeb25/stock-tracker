@@ -1,7 +1,8 @@
 """Stock price fetching using yfinance."""
 
 import yfinance as yf
-from typing import Dict, Optional
+import requests
+from typing import Dict, Optional, List
 import logging
 import pandas as pd
 import concurrent.futures
@@ -459,4 +460,236 @@ class StockFetcher:
 
         except Exception as e:
             logger.error(f"Error fetching fundamental data for {symbol}: {e}", exc_info=True)
+            return None
+
+    def search_symbols(self, query: str, limit: int = 10) -> List[Dict[str, str]]:
+        """Search for stock symbols using Yahoo Finance search API.
+
+        Args:
+            query: Search query (partial symbol or company name)
+            limit: Maximum number of results to return
+
+        Returns:
+            List of dicts with symbol, name, exchange, and type
+        """
+        if not query or len(query) < 1:
+            return []
+
+        cache_key = f"search_{query.upper()}_{limit}"
+
+        def fetch_search():
+            try:
+                url = "https://query1.finance.yahoo.com/v1/finance/search"
+                params = {
+                    "q": query,
+                    "quotesCount": limit,
+                    "newsCount": 0,
+                    "listsCount": 0,
+                    "enableFuzzyQuery": False,
+                    "quotesQueryId": "tss_match_phrase_query"
+                }
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                }
+
+                response = requests.get(url, params=params, headers=headers, timeout=5)
+                response.raise_for_status()
+                data = response.json()
+
+                results = []
+                for quote in data.get("quotes", []):
+                    # Only include stocks and ETFs
+                    quote_type = quote.get("quoteType", "")
+                    if quote_type in ["EQUITY", "ETF"]:
+                        results.append({
+                            "symbol": quote.get("symbol", ""),
+                            "name": quote.get("shortname") or quote.get("longname", ""),
+                            "exchange": quote.get("exchange", ""),
+                            "type": quote_type
+                        })
+
+                logger.info(f"Search for '{query}' returned {len(results)} results")
+                return results
+
+            except Exception as e:
+                logger.error(f"Error searching for symbols: {e}")
+                return []
+
+        return self._get_cached_or_fetch(cache_key, fetch_search, ttl=300)  # Cache for 5 minutes
+
+    def validate_symbol(self, symbol: str) -> Optional[Dict[str, str]]:
+        """Validate if a stock symbol exists and get basic info.
+
+        Args:
+            symbol: Stock ticker symbol to validate
+
+        Returns:
+            Dict with symbol info if valid, None if invalid
+        """
+        if not symbol:
+            return None
+
+        cache_key = f"validate_{symbol.upper()}"
+
+        def fetch_validation():
+            try:
+                ticker = yf.Ticker(symbol.upper())
+                info = ticker.info
+
+                # Check if we got valid data
+                if not info or info.get("regularMarketPrice") is None:
+                    # Try to get history as fallback validation
+                    hist = ticker.history(period="1d")
+                    if hist.empty:
+                        logger.info(f"Symbol {symbol} is not valid")
+                        return None
+
+                return {
+                    "symbol": symbol.upper(),
+                    "name": info.get("shortName") or info.get("longName", ""),
+                    "exchange": info.get("exchange", ""),
+                    "type": info.get("quoteType", "EQUITY"),
+                    "valid": True
+                }
+
+            except Exception as e:
+                logger.error(f"Error validating symbol {symbol}: {e}")
+                return None
+
+        return self._get_cached_or_fetch(cache_key, fetch_validation, ttl=3600)  # Cache for 1 hour
+
+    def get_market_overview(self) -> Dict[str, any]:
+        """Get market overview data including major indices, VIX, and sentiment indicators.
+
+        Returns:
+            Dictionary with market overview data
+        """
+        cache_key = "market_overview"
+
+        def fetch_market_data():
+            result = {
+                "indices": {},
+                "vix": None,
+                "treasury_10y": None,
+                "fear_greed": None,
+                "updated_at": None
+            }
+
+            try:
+                # Define symbols to fetch
+                symbols = {
+                    "SPY": "S&P 500",
+                    "QQQ": "NASDAQ 100",
+                    "DIA": "Dow Jones",
+                    "IWM": "Russell 2000",
+                    "^VIX": "VIX",
+                    "^TNX": "10Y Treasury"
+                }
+
+                # Fetch all data in parallel
+                def fetch_single(symbol):
+                    try:
+                        ticker = yf.Ticker(symbol)
+                        info = ticker.info
+                        hist = ticker.history(period="2d")
+
+                        if hist.empty:
+                            return symbol, None
+
+                        current_price = hist['Close'].iloc[-1] if len(hist) > 0 else None
+                        prev_close = hist['Close'].iloc[-2] if len(hist) > 1 else current_price
+
+                        if current_price and prev_close:
+                            change = current_price - prev_close
+                            change_percent = (change / prev_close) * 100
+                        else:
+                            change = 0
+                            change_percent = 0
+
+                        return symbol, {
+                            "price": round(float(current_price), 2) if current_price else None,
+                            "change": round(float(change), 2),
+                            "change_percent": round(float(change_percent), 2),
+                            "name": symbols.get(symbol, symbol)
+                        }
+                    except Exception as e:
+                        logger.error(f"Error fetching {symbol}: {e}")
+                        return symbol, None
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+                    futures = {executor.submit(fetch_single, sym): sym for sym in symbols.keys()}
+                    for future in concurrent.futures.as_completed(futures):
+                        symbol, data = future.result()
+                        if data:
+                            if symbol == "^VIX":
+                                result["vix"] = data
+                            elif symbol == "^TNX":
+                                result["treasury_10y"] = data
+                            else:
+                                result["indices"][symbol] = data
+
+                # Fetch Fear & Greed Index from CNN
+                try:
+                    fear_greed = self._fetch_fear_greed_index()
+                    if fear_greed:
+                        result["fear_greed"] = fear_greed
+                except Exception as e:
+                    logger.error(f"Error fetching Fear & Greed Index: {e}")
+
+                result["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                logger.info("Market overview data fetched successfully")
+                return result
+
+            except Exception as e:
+                logger.error(f"Error fetching market overview: {e}")
+                return result
+
+        return self._get_cached_or_fetch(cache_key, fetch_market_data, ttl=300)  # Cache for 5 minutes
+
+    def _fetch_fear_greed_index(self) -> Optional[Dict[str, any]]:
+        """Fetch CNN Fear & Greed Index.
+
+        Returns:
+            Dictionary with fear/greed data or None
+        """
+        try:
+            # CNN Fear & Greed API endpoint
+            url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if data and "fear_and_greed" in data:
+                fg_data = data["fear_and_greed"]
+                score = fg_data.get("score", 0)
+
+                # Determine sentiment label
+                if score <= 25:
+                    sentiment = "Extreme Fear"
+                elif score <= 45:
+                    sentiment = "Fear"
+                elif score <= 55:
+                    sentiment = "Neutral"
+                elif score <= 75:
+                    sentiment = "Greed"
+                else:
+                    sentiment = "Extreme Greed"
+
+                return {
+                    "score": round(score),
+                    "sentiment": sentiment,
+                    "previous_close": round(fg_data.get("previous_close", 0)),
+                    "week_ago": round(fg_data.get("previous_1_week", 0)),
+                    "month_ago": round(fg_data.get("previous_1_month", 0)),
+                    "year_ago": round(fg_data.get("previous_1_year", 0))
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error fetching Fear & Greed Index: {e}")
             return None

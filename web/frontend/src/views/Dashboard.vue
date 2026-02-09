@@ -17,6 +17,9 @@
       </button>
     </div>
 
+    <!-- Market Overview Section -->
+    <MarketOverview />
+
     <!-- Filters -->
     <div class="row mb-4 g-3">
       <div class="col-md-6">
@@ -143,13 +146,15 @@ import { useKeyboardShortcuts, CommonShortcuts } from '@/composables/useKeyboard
 import StockCard from '@/components/StockCard.vue'
 import StockCardSkeleton from '@/components/StockCardSkeleton.vue'
 import AddStockModal from '@/components/AddStockModal.vue'
+import MarketOverview from '@/components/MarketOverview.vue'
 
 export default {
   name: 'Dashboard',
   components: {
     StockCard,
     StockCardSkeleton,
-    AddStockModal
+    AddStockModal,
+    MarketOverview
   },
   setup() {
     const stocksStore = useStocksStore()

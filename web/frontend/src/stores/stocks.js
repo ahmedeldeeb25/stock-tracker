@@ -74,6 +74,19 @@ export const useStocksStore = defineStore('stocks', {
       }
     },
 
+    // Refresh stock data without loading state (no skeleton, chart stays)
+    async refreshStockDetails(symbol) {
+      try {
+        const response = await stocksApi.getBySymbol(symbol)
+        // Preserve the loading state, just update the data
+        this.currentStock = response.data
+        return response.data
+      } catch (error) {
+        console.error('Error refreshing stock details:', error)
+        throw error
+      }
+    },
+
     async createStock(stockData) {
       this.loading = true
       this.error = null
@@ -114,6 +127,85 @@ export const useStocksStore = defineStore('stocks', {
     clearFilters() {
       this.filters.tag = null
       this.filters.search = ''
+    },
+
+    // Partial update methods to avoid full page reload
+    updateCurrentStockTags(tags) {
+      if (this.currentStock) {
+        this.currentStock.tags = tags
+      }
+    },
+
+    updateCurrentStockTimeframes(timeframes) {
+      if (this.currentStock) {
+        this.currentStock.timeframes = timeframes
+      }
+    },
+
+    updateCurrentStockTargets(targets) {
+      if (this.currentStock) {
+        this.currentStock.targets = targets
+      }
+    },
+
+    addTargetToCurrentStock(target) {
+      if (this.currentStock) {
+        this.currentStock.targets = [...(this.currentStock.targets || []), target]
+      }
+    },
+
+    updateTargetInCurrentStock(updatedTarget) {
+      if (this.currentStock && this.currentStock.targets) {
+        const index = this.currentStock.targets.findIndex(t => t.id === updatedTarget.id)
+        if (index !== -1) {
+          this.currentStock.targets[index] = updatedTarget
+        }
+      }
+    },
+
+    removeTargetFromCurrentStock(targetId) {
+      if (this.currentStock && this.currentStock.targets) {
+        this.currentStock.targets = this.currentStock.targets.filter(t => t.id !== targetId)
+      }
+    },
+
+    updateCurrentStockNotes(notes) {
+      if (this.currentStock) {
+        this.currentStock.notes = notes
+      }
+    },
+
+    addNoteToCurrentStock(note) {
+      if (this.currentStock) {
+        this.currentStock.notes = [note, ...(this.currentStock.notes || [])]
+      }
+    },
+
+    updateNoteInCurrentStock(updatedNote) {
+      if (this.currentStock && this.currentStock.notes) {
+        const index = this.currentStock.notes.findIndex(n => n.id === updatedNote.id)
+        if (index !== -1) {
+          this.currentStock.notes[index] = updatedNote
+        }
+      }
+    },
+
+    removeNoteFromCurrentStock(noteId) {
+      if (this.currentStock && this.currentStock.notes) {
+        this.currentStock.notes = this.currentStock.notes.filter(n => n.id !== noteId)
+      }
+    },
+
+    updateCurrentStockHolding(holding) {
+      if (this.currentStock) {
+        this.currentStock.holding = holding
+      }
+    },
+
+    removeCurrentStockHolding() {
+      if (this.currentStock) {
+        this.currentStock.holding = null
+      }
     }
   }
 })
