@@ -202,85 +202,6 @@
             />
           </CollapsibleCard>
 
-          <!-- Targets Section -->
-          <CollapsibleCard
-            title="Price Targets"
-            icon="bi bi-crosshair"
-            :default-open="true"
-            storage-key="price-targets"
-          >
-            <template #actions>
-              <button
-                class="btn btn-sm btn-outline-primary"
-                @click.stop="showAddTargetModal"
-                aria-label="Add new price target"
-              >
-                <i class="bi bi-plus" aria-hidden="true"></i>
-              </button>
-            </template>
-            <div>
-              <div
-                v-for="target in stock.targets"
-                :key="target.id"
-                class="p-3 mb-3 border rounded target-item"
-                :class="{ 'alert-triggered bg-light': target.is_triggered }"
-              >
-                <div class="d-flex justify-content-between align-items-start">
-                  <div class="flex-grow-1">
-                    <span
-                      class="badge target-badge me-2"
-                      :class="getTargetBadgeClass(target.target_type)"
-                    >
-                      {{ target.target_type }}
-                      <span v-if="target.trim_percentage"> ({{ target.trim_percentage }}%)</span>
-                    </span>
-                    <span class="h5">{{ formatPrice(target.target_price) }}</span>
-                  </div>
-                  <div class="text-end d-flex align-items-start gap-2">
-                    <div>
-                      <div>
-                        <i v-if="target.is_triggered" class="bi bi-bell-fill text-warning fs-5"></i>
-                        <span
-                          class="ms-2"
-                          :class="getPriceChangeClass(target.difference_percent)"
-                        >
-                          {{ formatPrice(target.difference) }}
-                          ({{ formatPercent(target.difference_percent) }})
-                        </span>
-                      </div>
-                      <span
-                        class="badge"
-                        :class="target.is_active ? 'bg-success' : 'bg-secondary'"
-                      >
-                        {{ target.is_active ? 'Active' : 'Inactive' }}
-                      </span>
-                    </div>
-                    <div class="btn-group-vertical btn-group-sm">
-                      <button
-                        class="btn btn-outline-primary btn-sm"
-                        @click="editTarget(target)"
-                        aria-label="Edit target"
-                      >
-                        <i class="bi bi-pencil" aria-hidden="true"></i>
-                      </button>
-                      <button
-                        class="btn btn-outline-secondary btn-sm"
-                        @click="toggleTarget(target)"
-                        :aria-label="target.is_active ? 'Deactivate target' : 'Activate target'"
-                      >
-                        <i :class="target.is_active ? 'bi bi-toggle-on' : 'bi bi-toggle-off'" aria-hidden="true"></i>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div v-if="target.alert_note" class="mt-2 text-muted small">
-                  <i class="bi bi-info-circle me-1"></i>
-                  {{ target.alert_note }}
-                </div>
-              </div>
-            </div>
-          </CollapsibleCard>
-
           <!-- Alert History -->
           <CollapsibleCard
             v-if="stock.alert_history && stock.alert_history.length"
@@ -363,6 +284,85 @@
                 <button class="btn btn-sm btn-primary" @click="showAddNoteModal">
                   Add First Note
                 </button>
+              </div>
+            </div>
+          </CollapsibleCard>
+
+          <!-- Price Targets -->
+          <CollapsibleCard
+            title="Price Targets"
+            icon="bi bi-crosshair"
+            :default-open="true"
+            storage-key="price-targets"
+          >
+            <template #actions>
+              <button
+                class="btn btn-sm btn-outline-primary"
+                @click.stop="showAddTargetModal"
+                aria-label="Add new price target"
+              >
+                <i class="bi bi-plus" aria-hidden="true"></i>
+              </button>
+            </template>
+            <div>
+              <div
+                v-for="target in stock.targets"
+                :key="target.id"
+                class="p-3 mb-3 border rounded target-item"
+                :class="{ 'alert-triggered bg-light': target.is_triggered }"
+              >
+                <div class="d-flex justify-content-between align-items-start">
+                  <div class="flex-grow-1">
+                    <span
+                      class="badge target-badge me-2"
+                      :class="getTargetBadgeClass(target.target_type)"
+                    >
+                      {{ target.target_type }}
+                      <span v-if="target.trim_percentage"> ({{ target.trim_percentage }}%)</span>
+                    </span>
+                    <span class="h5">{{ formatPrice(target.target_price) }}</span>
+                  </div>
+                  <div class="text-end d-flex align-items-start gap-2">
+                    <div>
+                      <div>
+                        <i v-if="target.is_triggered" class="bi bi-bell-fill text-warning fs-5"></i>
+                        <span
+                          class="ms-2"
+                          :class="getPriceChangeClass(target.difference_percent)"
+                        >
+                          {{ formatPrice(target.difference) }}
+                          ({{ formatPercent(target.difference_percent) }})
+                        </span>
+                      </div>
+                      <span
+                        class="badge"
+                        :class="target.is_active ? 'bg-success' : 'bg-secondary'"
+                      >
+                        {{ target.is_active ? 'Active' : 'Inactive' }}
+                      </span>
+                    </div>
+                    <div class="btn-group-vertical btn-group-sm">
+                      <button
+                        class="btn btn-outline-primary btn-sm"
+                        @click="editTarget(target)"
+                        aria-label="Edit target"
+                      >
+                        <i class="bi bi-pencil" aria-hidden="true"></i>
+                      </button>
+                      <button
+                        class="btn btn-outline-secondary btn-sm"
+                        @click="toggleTarget(target)"
+                        :aria-label="target.is_active ? 'Deactivate target' : 'Activate target'"
+                      >
+                        <i :class="target.is_active ? 'bi bi-toggle-on' : 'bi bi-toggle-off'" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="target.alert_note" class="mt-2 text-muted small">
+                  <i class="bi bi-info-circle me-1"></i>
+                  {{ target.alert_note }}
+                </div>
               </div>
             </div>
           </CollapsibleCard>
