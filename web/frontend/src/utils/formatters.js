@@ -52,3 +52,29 @@ export function getTargetBadgeClass(targetType) {
   }
   return classes[targetType] || 'bg-secondary'
 }
+
+// Format number with commas (for shares)
+export function formatNumber(num) {
+  if (num === null || num === undefined) return 'N/A'
+  return parseFloat(num).toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 6
+  })
+}
+
+// Format gain/loss with + or - sign
+export function formatGainLoss(value) {
+  if (value === null || value === undefined) return 'N/A'
+  const formatted = Math.abs(value).toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  })
+  return value >= 0 ? `+${formatted}` : `-${formatted}`
+}
+
+// Get CSS class for gain/loss display
+export function getGainLossClass(value) {
+  if (value > 0) return 'text-success'
+  if (value < 0) return 'text-danger'
+  return 'text-muted'
+}

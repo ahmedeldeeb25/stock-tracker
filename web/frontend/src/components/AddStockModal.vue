@@ -185,6 +185,7 @@
 
 <script>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useStocksStore } from '@/stores/stocks'
 import { useToastStore } from '@/stores/toast'
 
@@ -192,6 +193,7 @@ export default {
   name: 'AddStockModal',
   emits: ['stock-added'],
   setup(props, { emit }) {
+    const router = useRouter()
     const stocksStore = useStocksStore()
     const toast = useToastStore()
 
@@ -274,6 +276,9 @@ export default {
           targets: validTargets
         })
 
+        // Save symbol before resetting form
+        const createdSymbol = formData.value.symbol.toUpperCase()
+
         // Close modal
         const modal = document.getElementById('addStockModal')
         const modalInstance = window.bootstrap.Modal.getInstance(modal)
@@ -281,6 +286,9 @@ export default {
 
         resetForm()
         emit('stock-added')
+
+        // Redirect to stock details page
+        router.push(`/stock/${createdSymbol}`)
       } catch (error) {
         errorMessage.value = error.message || 'Failed to add stock'
         toast.error('Failed to add stock: ' + (error.message || 'Unknown error'))

@@ -7,6 +7,7 @@ from src.repositories.tag_repository import TagRepository
 from src.repositories.note_repository import NoteRepository
 from src.repositories.alert_repository import AlertRepository
 from src.repositories.timeframe_repository import TimeframeRepository
+from src.repositories.holding_repository import HoldingRepository
 
 __all__ = [
     'BaseRepository',
@@ -16,4 +17,5 @@ __all__ = [
     'NoteRepository',
     'AlertRepository',
     'TimeframeRepository',
+    'HoldingRepository',
 ]

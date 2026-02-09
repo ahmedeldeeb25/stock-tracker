@@ -79,6 +79,21 @@ export const stocksApi = {
   // Batch update exchanges for all stocks
   batchUpdateExchanges() {
     return client.post('/stocks/batch/update-exchanges')
+  },
+
+  // Get holding for a stock
+  getHolding(stockId) {
+    return client.get(`/stocks/${stockId}/holding`)
+  },
+
+  // Create or update holding
+  updateHolding(stockId, data) {
+    return client.put(`/stocks/${stockId}/holding`, data)
+  },
+
+  // Delete holding
+  deleteHolding(stockId) {
+    return client.delete(`/stocks/${stockId}/holding`)
   }
 }
 
@@ -186,5 +201,12 @@ export const timeframesApi = {
   // Delete timeframe
   delete(id) {
     return client.delete(`/timeframes/${id}`)
+  }
+}
+
+export const portfolioApi = {
+  // Get portfolio summary
+  getSummary() {
+    return client.get('/portfolio/summary')
   }
 }

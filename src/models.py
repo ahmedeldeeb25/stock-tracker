@@ -75,12 +75,24 @@ class AlertHistory:
 
 
 @dataclass
+class Holding:
+    """Stock holding/position model."""
+    id: Optional[int] = None
+    stock_id: Optional[int] = None
+    shares: float = 0.0
+    average_cost: Optional[float] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+@dataclass
 class StockWithDetails:
     """Stock with all related data."""
     stock: Stock
     tags: List[Tag]
     targets: List[Target]
     notes: List[Note]
+    holding: Optional[Holding] = None
     notes_count: int = 0
     current_price: Optional[float] = None
     price_change: Optional[float] = None

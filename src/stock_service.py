@@ -6,7 +6,7 @@ from datetime import date
 
 from src.db_manager import DatabaseManager
 from src.stock_fetcher import StockFetcher
-from src.models import Stock, Target, Tag, Note, StockWithDetails
+from src.models import Stock, Target, Tag, Note, StockWithDetails, Holding
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +108,7 @@ class StockService:
         notes = self.db.get_notes_for_stock(stock.id)
         notes_count = self.db.get_notes_count_for_stock(stock.id)
         latest_alert = self.db.get_latest_alert_for_stock(stock.id)
+        holding = self.db.get_holding_for_stock(stock.id)
 
         result = {
             "id": stock.id,
@@ -139,6 +140,10 @@ class StockService:
                 # Add status for each target
                 for target_dict in result["targets"]:
                     target_dict.update(self._calculate_target_status(current_price, target_dict))
+
+                # Add holding with calculated values
+                if holding:
+                    result["holding"] = self._calculate_holding_values(holding, current_price)
 
             # Fetch RSI
             rsi = self.fetcher.get_rsi(stock.symbol)
@@ -193,6 +198,7 @@ class StockService:
         timeframes_batch = self.db.get_timeframes_for_stocks_batch(stock_ids)
         notes_counts = self.db.get_notes_count_for_stocks_batch(stock_ids)
         latest_alerts = self.db.get_latest_alert_for_stocks_batch(stock_ids)
+        holdings_batch = self.db.get_holdings_for_stocks_batch(stock_ids)
 
         for stock in stocks:
             # Retrieve pre-fetched data from batch results
@@ -231,6 +237,11 @@ class StockService:
                     # Add status for each target
                     for target_dict in stock_dict["targets"]:
                         target_dict.update(self._calculate_target_status(current_price, target_dict))
+
+                    # Add holding with calculated values
+                    holding = holdings_batch.get(stock.id)
+                    if holding:
+                        stock_dict["holding"] = self._calculate_holding_values(holding, current_price)
 
                 # Extract after-hours and price change from batch-fetched info
                 info = info_dict.get(stock.symbol)
@@ -335,3 +346,42 @@ class StockService:
             "difference_percent": round(difference_percent, 2),
             "is_triggered": is_triggered
         }
+
+    def _calculate_holding_values(
+        self,
+        holding: Holding,
+        current_price: Optional[float]
+    ) -> Dict[str, Any]:
+        """Calculate holding values including gain/loss.
+
+        Args:
+            holding: Holding object
+            current_price: Current stock price
+
+        Returns:
+            Dictionary with calculated values
+        """
+        result = {
+            "id": holding.id,
+            "shares": holding.shares,
+            "average_cost": holding.average_cost,
+            "created_at": holding.created_at.isoformat() if holding.created_at else None,
+            "updated_at": holding.updated_at.isoformat() if holding.updated_at else None
+        }
+
+        # Calculate position value
+        if current_price:
+            result["position_value"] = round(holding.shares * current_price, 2)
+
+        # Calculate gain/loss if average_cost is set
+        if holding.average_cost and current_price:
+            cost_basis_total = holding.shares * holding.average_cost
+            position_value = holding.shares * current_price
+            gain_loss = position_value - cost_basis_total
+            gain_loss_percent = (gain_loss / cost_basis_total) * 100
+
+            result["cost_basis_total"] = round(cost_basis_total, 2)
+            result["gain_loss"] = round(gain_loss, 2)
+            result["gain_loss_percent"] = round(gain_loss_percent, 2)
+
+        return result

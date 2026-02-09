@@ -19,13 +19,74 @@ from src.db_manager import DatabaseManager
 from src.stock_fetcher import StockFetcher
 from src.stock_service import StockService
 
+# Setup logging (must be before CORS configuration)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Initialize Flask app
 app = Flask(__name__, static_folder='frontend/dist')
 
-# CORS Configuration - more restrictive than before
-CORS(app,
-     origins=['http://localhost:5173', 'http://localhost:5555'],  # Vite dev + production
-     supports_credentials=True)  # Required for cookies
+# ============================================================================
+# CORS Configuration (CRITICAL-003 Fix)
+# ============================================================================
+
+def get_allowed_origins():
+    """Get allowed CORS origins from environment or use secure defaults."""
+    env_origins = os.getenv('ALLOWED_ORIGINS', '')
+    flask_env = os.getenv('FLASK_ENV', 'production')
+
+    if env_origins:
+        # Parse comma-separated origins from environment
+        origins = [origin.strip() for origin in env_origins.split(',') if origin.strip()]
+        logger.info(f"Using CORS origins from environment: {origins}")
+        return origins
+
+    # Default origins based on environment
+    if flask_env == 'development':
+        # Development: Allow localhost on common ports
+        default_origins = [
+            'http://localhost:5173',  # Vite dev server
+            'http://localhost:5555',  # Flask production mode
+            'http://127.0.0.1:5173',
+            'http://127.0.0.1:5555'
+        ]
+        logger.info(f"Development mode: Using default CORS origins: {default_origins}")
+        return default_origins
+    else:
+        # Production: No default origins - must be explicitly configured
+        logger.warning("Production mode: No CORS origins configured. Set ALLOWED_ORIGINS in .env")
+        return []
+
+# Configure CORS with security best practices
+allowed_origins = get_allowed_origins()
+
+if allowed_origins:
+    CORS(app,
+         origins=allowed_origins,
+         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],  # Explicit methods only
+         allow_headers=[
+             'Content-Type',
+             'Authorization',
+             'X-CSRF-Token',  # For CSRF protection
+             'Accept'
+         ],
+         expose_headers=['X-CSRF-Token'],  # Allow frontend to read CSRF token
+         supports_credentials=True,  # Required for cookies and CSRF tokens
+         max_age=3600)  # Cache preflight requests for 1 hour
+    logger.info(f"✓ CORS configured with {len(allowed_origins)} allowed origin(s)")
+    for origin in allowed_origins:
+        logger.info(f"  - {origin}")
+else:
+    logger.error("✗ CORS NOT CONFIGURED - No origins allowed!")
+    logger.error("  Please set ALLOWED_ORIGINS in .env file")
+    logger.error("  Example: ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5555")
+
+# ============================================================================
+# End CORS Configuration
+# ============================================================================
 
 # Configuration
 app.config['JSON_SORT_KEYS'] = False
@@ -42,13 +103,6 @@ stock_service = StockService(db_manager, stock_fetcher)
 app.db_manager = db_manager
 app.stock_fetcher = stock_fetcher
 app.stock_service = stock_service
-
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 # ============================================================================
 # CSRF Protection (HIGH-006 Fix)
@@ -98,28 +152,71 @@ def csrf_setup():
         logger.debug(f"CSRF validation passed for {request.method} {request.path}")
 
 @app.after_request
-def set_csrf_cookie(response):
-    """Set CSRF cookie on all responses if not present."""
+def set_security_and_csrf(response):
+    """Set security headers and CSRF cookie on all responses."""
     # Skip for static files
     if request.path.startswith('/static/'):
         return response
 
+    # Skip security headers for OPTIONS requests (handled by CORS)
+    if request.method != 'OPTIONS':
+        # Prevent clickjacking
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+
+        # Prevent MIME type sniffing
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+
+        # Enable browser XSS protection
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+
+        # Referrer policy - don't leak URLs to other sites
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+
+        # Content Security Policy (relaxed for development, tighten in production)
+        flask_env = os.getenv('FLASK_ENV', 'production')
+        if flask_env == 'production':
+            # Production: Strict CSP
+            response.headers['Content-Security-Policy'] = (
+                "default-src 'self'; "
+                "script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; "  # Vue uses inline styles
+                "img-src 'self' data: https:; "
+                "font-src 'self'; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none'"
+            )
+        else:
+            # Development: Relaxed CSP for hot reload
+            response.headers['Content-Security-Policy'] = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-eval' 'unsafe-inline'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: https:; "
+                "connect-src 'self' ws: wss:; "  # WebSocket for hot reload
+                "frame-ancestors 'none'"
+            )
+
     # Set CSRF cookie if not present
     if not request.cookies.get('csrf_token') and response.status_code < 400:
         csrf_token = generate_csrf_token()
+
+        # Determine secure flag based on environment
+        flask_env = os.getenv('FLASK_ENV', 'production')
+        is_production = flask_env == 'production'
+
         response.set_cookie(
             'csrf_token',
             csrf_token,
             max_age=3600 * 24,  # 24 hours
             httponly=False,  # Must be readable by JavaScript
-            secure=False,  # Set to True in production with HTTPS
+            secure=is_production,  # True in production (HTTPS required)
             samesite='Lax'  # CSRF protection
         )
 
     return response
 
 # ============================================================================
-# End CSRF Protection
+# End CSRF Protection & Security Headers
 # ============================================================================
 
 # Register blueprints
@@ -131,6 +228,7 @@ try:
     from routes.prices import prices_bp
     from routes.alerts import alerts_bp
     from routes.timeframes import timeframes_bp
+    from routes.portfolio import portfolio_bp
 
     app.register_blueprint(stocks_bp, url_prefix='/api/stocks')
     app.register_blueprint(targets_bp, url_prefix='/api/targets')
@@ -139,6 +237,7 @@ try:
     app.register_blueprint(prices_bp, url_prefix='/api/prices')
     app.register_blueprint(alerts_bp, url_prefix='/api/alerts')
     app.register_blueprint(timeframes_bp, url_prefix='/api/timeframes')
+    app.register_blueprint(portfolio_bp, url_prefix='/api/portfolio')
 
     logger.info("All blueprints registered successfully")
     logger.info("Registered routes:")

@@ -79,6 +79,37 @@
         </span>
       </div>
 
+      <!-- Holdings Section -->
+      <div v-if="stock.holding" class="holdings-section mb-3 p-2 rounded bg-light border">
+        <div class="holdings-label text-muted text-uppercase small fw-semibold mb-1" style="letter-spacing: 0.5px;">
+          Holdings
+        </div>
+        <div class="holdings-content">
+          <div class="shares-line">
+            {{ formatNumber(stock.holding.shares) }} shares
+            <span v-if="stock.holding.average_cost" class="text-muted">
+              @ {{ formatPrice(stock.holding.average_cost) }} avg
+            </span>
+          </div>
+          <div class="value-line fw-medium" v-if="stock.holding.position_value">
+            Value: {{ formatPrice(stock.holding.position_value) }}
+          </div>
+          <div
+            v-if="stock.holding.gain_loss !== undefined && stock.holding.gain_loss !== null"
+            class="gain-loss-line"
+            :class="getGainLossClass(stock.holding.gain_loss)"
+          >
+            <i
+              :class="stock.holding.gain_loss >= 0 ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"
+              aria-hidden="true"
+            ></i>
+            {{ stock.holding.gain_loss >= 0 ? 'Gain' : 'Loss' }}:
+            {{ formatGainLoss(stock.holding.gain_loss) }}
+            ({{ formatPercent(stock.holding.gain_loss_percent) }})
+          </div>
+        </div>
+      </div>
+
       <!-- Targets -->
       <div class="mt-3" v-if="filteredTargets.length">
         <h3 class="visually-hidden">Price Targets</h3>
@@ -142,7 +173,7 @@
 
 <script>
 import { computed } from 'vue'
-import { formatPrice, formatPercent, getPriceChangeClass, getTargetBadgeClass } from '@/utils/formatters'
+import { formatPrice, formatPercent, formatNumber, formatGainLoss, getPriceChangeClass, getTargetBadgeClass, getGainLossClass } from '@/utils/formatters'
 
 export default {
   name: 'StockCard',
@@ -165,8 +196,11 @@ export default {
       filteredTargets,
       formatPrice,
       formatPercent,
+      formatNumber,
+      formatGainLoss,
       getPriceChangeClass,
-      getTargetBadgeClass
+      getTargetBadgeClass,
+      getGainLossClass
     }
   }
 }

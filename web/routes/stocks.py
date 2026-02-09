@@ -564,3 +564,97 @@ def batch_update_exchanges():
     except Exception as e:
         logger.error(f"Error in batch exchange update: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>/holding', methods=['GET'])
+def get_stock_holding(stock_id):
+    """Get holding for a stock."""
+    try:
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        holding = current_app.db_manager.get_holding_for_stock(stock_id)
+
+        if holding:
+            return jsonify({
+                "holding": {
+                    "id": holding.id,
+                    "stock_id": holding.stock_id,
+                    "shares": holding.shares,
+                    "average_cost": holding.average_cost,
+                    "created_at": holding.created_at.isoformat() if holding.created_at else None,
+                    "updated_at": holding.updated_at.isoformat() if holding.updated_at else None
+                }
+            })
+        else:
+            return jsonify({"holding": None})
+
+    except Exception as e:
+        logger.error(f"Error fetching holding for stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>/holding', methods=['PUT'])
+def update_stock_holding(stock_id):
+    """Create or update holding for a stock."""
+    try:
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        data = request.get_json()
+
+        # Validate shares
+        shares = data.get('shares')
+        if shares is None or shares <= 0:
+            return jsonify({"error": "shares is required and must be greater than 0"}), 400
+
+        # Validate average_cost if provided
+        average_cost = data.get('average_cost')
+        if average_cost is not None and average_cost <= 0:
+            return jsonify({"error": "average_cost must be greater than 0"}), 400
+
+        holding_id = current_app.db_manager.create_or_update_holding(
+            stock_id=stock_id,
+            shares=shares,
+            average_cost=average_cost
+        )
+
+        holding = current_app.db_manager.get_holding_for_stock(stock_id)
+
+        return jsonify({
+            "success": True,
+            "holding": {
+                "id": holding.id,
+                "stock_id": holding.stock_id,
+                "shares": holding.shares,
+                "average_cost": holding.average_cost,
+                "created_at": holding.created_at.isoformat() if holding.created_at else None,
+                "updated_at": holding.updated_at.isoformat() if holding.updated_at else None
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error updating holding for stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/<int:stock_id>/holding', methods=['DELETE'])
+def delete_stock_holding(stock_id):
+    """Delete holding for a stock."""
+    try:
+        stock = current_app.db_manager.get_stock_by_id(stock_id)
+        if not stock:
+            return jsonify({"error": "Stock not found"}), 404
+
+        success = current_app.db_manager.delete_holding(stock_id)
+
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "No holding found for this stock"}), 404
+
+    except Exception as e:
+        logger.error(f"Error deleting holding for stock {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500

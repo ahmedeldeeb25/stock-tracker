@@ -10,14 +10,15 @@ from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, date
 from contextlib import contextmanager
 
-from src.models import Stock, Target, Tag, Note, AlertHistory, Timeframe
+from src.models import Stock, Target, Tag, Note, AlertHistory, Timeframe, Holding
 from src.repositories import (
     StockRepository,
     TargetRepository,
     TagRepository,
     NoteRepository,
     AlertRepository,
-    TimeframeRepository
+    TimeframeRepository,
+    HoldingRepository
 )
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ class DatabaseManager:
         self.notes = NoteRepository(db_path)
         self.alerts = AlertRepository(db_path)
         self.timeframes = TimeframeRepository(db_path)
+        self.holdings = HoldingRepository(db_path)
 
     @contextmanager
     def get_connection(self):
@@ -191,6 +193,20 @@ class DatabaseManager:
                     FOREIGN KEY (timeframe_id) REFERENCES investment_timeframes(id) ON DELETE CASCADE
                 )
             """)
+
+            # Stock holdings table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS stock_holdings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    stock_id INTEGER NOT NULL UNIQUE,
+                    shares DECIMAL(15, 6) NOT NULL,
+                    average_cost DECIMAL(10, 2),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_holdings_stock_id ON stock_holdings(stock_id)")
 
             # Insert default timeframes if not exists
             cursor.execute("SELECT COUNT(*) FROM investment_timeframes")
@@ -401,3 +417,26 @@ class DatabaseManager:
     def get_latest_alert_for_stocks_batch(self, stock_ids: List[int]) -> Dict[int, Optional[AlertHistory]]:
         """Get latest alert for multiple stocks in a single query (delegates to AlertRepository)."""
         return self.alerts.get_latest_alert_for_stocks_batch(stock_ids)
+
+    # ==================== HOLDING OPERATIONS ====================
+
+    def create_or_update_holding(self, stock_id: int, shares: float,
+                                 average_cost: Optional[float] = None) -> int:
+        """Create or update a stock holding (delegates to HoldingRepository)."""
+        return self.holdings.create_or_update_holding(stock_id, shares, average_cost)
+
+    def get_holding_for_stock(self, stock_id: int) -> Optional[Holding]:
+        """Get holding for a stock (delegates to HoldingRepository)."""
+        return self.holdings.get_holding_for_stock(stock_id)
+
+    def get_holdings_for_stocks_batch(self, stock_ids: List[int]) -> Dict[int, Holding]:
+        """Get holdings for multiple stocks (delegates to HoldingRepository)."""
+        return self.holdings.get_holdings_for_stocks_batch(stock_ids)
+
+    def delete_holding(self, stock_id: int) -> bool:
+        """Delete a holding (delegates to HoldingRepository)."""
+        return self.holdings.delete_holding(stock_id)
+
+    def get_portfolio_summary(self) -> Dict[str, float]:
+        """Get portfolio summary (delegates to HoldingRepository)."""
+        return self.holdings.get_portfolio_summary()

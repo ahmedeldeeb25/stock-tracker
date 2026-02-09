@@ -244,6 +244,70 @@
 
         <!-- Right Column: Notes - Responsive col-md-4 -->
         <div class="col-md-4">
+          <!-- Position Holdings -->
+          <CollapsibleCard
+            title="Your Position"
+            icon="bi bi-wallet2"
+            :default-open="true"
+            storage-key="position-holdings"
+          >
+            <template #actions>
+              <button
+                class="btn btn-sm btn-outline-primary"
+                @click.stop="showEditHoldingModal"
+                :aria-label="stock.holding ? 'Edit position' : 'Add position'"
+              >
+                <i :class="stock.holding ? 'bi bi-pencil' : 'bi bi-plus'" aria-hidden="true"></i>
+              </button>
+            </template>
+            <div v-if="stock.holding">
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span class="text-muted">Shares</span>
+                  <span class="fw-bold">{{ formatNumber(stock.holding.shares) }}</span>
+                </div>
+              </div>
+              <div v-if="stock.holding.average_cost" class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span class="text-muted">Avg Cost</span>
+                  <span>{{ formatPrice(stock.holding.average_cost) }}</span>
+                </div>
+              </div>
+              <div v-if="stock.holding.position_value" class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span class="text-muted">Current Value</span>
+                  <span class="fw-bold">{{ formatPrice(stock.holding.position_value) }}</span>
+                </div>
+              </div>
+              <div v-if="stock.holding.average_cost && stock.holding.gain_loss !== undefined" class="mb-3 pt-2 border-top">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="text-muted">Total Gain/Loss</span>
+                  <div class="text-end">
+                    <div :class="getGainLossClass(stock.holding.gain_loss_percent)">
+                      {{ formatGainLoss(stock.holding.gain_loss) }}
+                    </div>
+                    <small :class="getGainLossClass(stock.holding.gain_loss_percent)">
+                      ({{ formatPercent(stock.holding.gain_loss_percent) }})
+                    </small>
+                  </div>
+                </div>
+              </div>
+              <div v-if="stock.holding.cost_basis_total" class="mb-2">
+                <div class="d-flex justify-content-between">
+                  <span class="text-muted">Cost Basis</span>
+                  <span>{{ formatPrice(stock.holding.cost_basis_total) }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-center text-muted py-3">
+              <i class="bi bi-wallet2 display-6"></i>
+              <p class="mt-2 mb-2">No position tracked</p>
+              <button class="btn btn-sm btn-primary" @click="showEditHoldingModal">
+                Add Position
+              </button>
+            </div>
+          </CollapsibleCard>
+
           <CollapsibleCard
             title="Analysis Notes"
             icon="bi bi-journal-text"
@@ -407,6 +471,14 @@
       :current-timeframes="stock.timeframes || []"
       @timeframes-updated="handleTimeframesUpdated"
     />
+    <EditHoldingModal
+      v-if="stock"
+      :stock-id="stock.id"
+      :current-price="stock.current_price"
+      :existing-holding="stock.holding"
+      @holding-updated="handleHoldingUpdated"
+      @holding-deleted="handleHoldingDeleted"
+    />
   </div>
 </template>
 
@@ -415,13 +487,14 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStocksStore } from '@/stores/stocks'
 import { useToastStore } from '@/stores/toast'
-import { formatPrice, formatPercent, formatDate, formatDateTime, getPriceChangeClass, getTargetBadgeClass } from '@/utils/formatters'
+import { formatPrice, formatPercent, formatNumber, formatGainLoss, formatDate, formatDateTime, getPriceChangeClass, getTargetBadgeClass, getGainLossClass } from '@/utils/formatters'
 import AddTargetModal from '@/components/AddTargetModal.vue'
 import EditTargetModal from '@/components/EditTargetModal.vue'
 import AddNoteModal from '@/components/AddNoteModal.vue'
 import ViewNoteModal from '@/components/ViewNoteModal.vue'
 import ManageTagsModal from '@/components/ManageTagsModal.vue'
 import ManageTimeframesModal from '@/components/ManageTimeframesModal.vue'
+import EditHoldingModal from '@/components/EditHoldingModal.vue'
 import StockDetailSkeleton from '@/components/StockDetailSkeleton.vue'
 import CollapsibleCard from '@/components/CollapsibleCard.vue'
 import FundamentalDataContent from '@/components/FundamentalDataContent.vue'
@@ -436,6 +509,7 @@ export default {
     ViewNoteModal,
     ManageTagsModal,
     ManageTimeframesModal,
+    EditHoldingModal,
     StockDetailSkeleton,
     CollapsibleCard,
     FundamentalDataContent
@@ -658,6 +732,22 @@ export default {
       toast.success('Timeframes updated successfully')
     }
 
+    // Holdings functions
+    const showEditHoldingModal = () => {
+      const modal = new window.bootstrap.Modal(document.getElementById('editHoldingModal'))
+      modal.show()
+    }
+
+    const handleHoldingUpdated = () => {
+      loadStock()
+      toast.success('Holdings updated successfully')
+    }
+
+    const handleHoldingDeleted = () => {
+      loadStock()
+      toast.success('Holdings deleted successfully')
+    }
+
     const getRsiBadgeClass = (rsi) => {
       if (rsi < 30) return 'bg-success'  // Oversold
       if (rsi > 70) return 'bg-danger'   // Overbought
@@ -691,12 +781,18 @@ export default {
       handleTagsUpdated,
       showManageTimeframesModal,
       handleTimeframesUpdated,
+      showEditHoldingModal,
+      handleHoldingUpdated,
+      handleHoldingDeleted,
       formatPrice,
       formatPercent,
+      formatNumber,
+      formatGainLoss,
       formatDate,
       formatDateTime,
       getPriceChangeClass,
       getTargetBadgeClass,
+      getGainLossClass,
       getRsiBadgeClass
     }
   }
