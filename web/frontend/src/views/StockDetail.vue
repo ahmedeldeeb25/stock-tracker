@@ -25,7 +25,7 @@
           </router-link>
           <div class="d-flex align-items-center gap-2">
             <a
-              :href="`https://www.google.com/finance/quote/${stock.symbol}:NASDAQ`"
+              :href="`https://www.google.com/finance/quote/${stock.symbol}${googleFinanceExchange}`"
               target="_blank"
               class="text-decoration-none text-dark"
               :aria-label="`View ${stock.symbol} on Google Finance (opens in new tab)`"
@@ -165,7 +165,7 @@
           >
             <template #actions>
               <a
-                :href="`https://www.google.com/finance/quote/${stock.symbol}:NASDAQ`"
+                :href="`https://www.google.com/finance/quote/${stock.symbol}${googleFinanceExchange}`"
                 target="_blank"
                 class="btn btn-sm btn-outline-secondary"
                 title="View on Google Finance"
@@ -450,6 +450,16 @@ export default {
     const error = computed(() => stocksStore.error)
     const stock = computed(() => stocksStore.currentStock)
 
+    // Computed property for Google Finance exchange suffix
+    const googleFinanceExchange = computed(() => {
+      if (!stock.value || !stock.value.exchange) {
+        // Default to NASDAQ if no exchange specified
+        return ':NASDAQ'
+      }
+      // Google Finance uses colon prefix for exchange
+      return `:${stock.value.exchange}`
+    })
+
     const selectedTarget = ref(null)
     const selectedNote = ref(null)
     const editingNote = ref(null)
@@ -658,6 +668,7 @@ export default {
       loading,
       error,
       stock,
+      googleFinanceExchange,
       selectedTarget,
       selectedNote,
       editingNote,

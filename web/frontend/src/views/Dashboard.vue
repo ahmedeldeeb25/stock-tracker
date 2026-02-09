@@ -19,7 +19,7 @@
 
     <!-- Filters -->
     <div class="row mb-4 g-3">
-      <div class="col-md-8">
+      <div class="col-md-6">
         <div class="input-group">
           <span class="input-group-text">
             <i class="bi bi-search" aria-hidden="true"></i>
@@ -36,7 +36,7 @@
           >
         </div>
       </div>
-      <div class="col-md-4">
+      <div class="col-md-3">
         <button
           class="btn btn-outline-secondary w-100"
           @click="refreshPrices"
@@ -44,6 +44,24 @@
         >
           <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>
           Refresh Prices
+        </button>
+      </div>
+      <div class="col-md-3">
+        <button
+          class="btn btn-outline-info w-100"
+          @click="updateExchanges"
+          :disabled="updatingExchanges"
+          aria-label="Update exchange information for all stocks"
+          title="Fetches correct exchange (NYSE, NASDAQ, etc.) for stocks missing this data"
+        >
+          <span v-if="updatingExchanges">
+            <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+            Updating...
+          </span>
+          <span v-else>
+            <i class="bi bi-building me-1" aria-hidden="true"></i>
+            Update Exchanges
+          </span>
         </button>
       </div>
     </div>
@@ -141,6 +159,7 @@ export default {
     const searchQuery = ref('')
     const selectedTag = ref(null)
     const searchInputRef = ref(null)
+    const updatingExchanges = ref(false)
 
     const loading = computed(() => stocksStore.loading)
     const error = computed(() => stocksStore.error)
@@ -192,6 +211,33 @@ export default {
       }
     }
 
+    const updateExchanges = async () => {
+      updatingExchanges.value = true
+      try {
+        const { stocksApi } = await import('@/api')
+        const response = await stocksApi.batchUpdateExchanges()
+        const data = response.data
+
+        if (data.updated > 0) {
+          toast.success(
+            `Successfully updated ${data.updated} stock(s). ` +
+            `Skipped: ${data.skipped}, Failed: ${data.failed}`
+          )
+          // Refresh the stock list to show updated exchange information
+          await stocksStore.fetchStocks(true)
+        } else if (data.skipped > 0) {
+          toast.info('All stocks already have exchange information')
+        } else {
+          toast.warning('No stocks were updated')
+        }
+      } catch (error) {
+        console.error('Exchange update error:', error)
+        toast.error('Failed to update exchanges: ' + (error.response?.data?.error || error.message))
+      } finally {
+        updatingExchanges.value = false
+      }
+    }
+
     const handleDelete = async (stockId) => {
       const isConfirmed = await confirm.show({
         title: 'Delete Stock?',
@@ -224,9 +270,11 @@ export default {
       searchQuery,
       selectedTag,
       searchInputRef,
+      updatingExchanges,
       handleSearch,
       filterByTag,
       refreshPrices,
+      updateExchanges,
       handleDelete,
       handleStockAdded
     }

@@ -13,13 +13,17 @@
 - ✅ **[CRITICAL-001]** XSS Vulnerability - Fixed on February 8, 2026
   - Added DOMPurify HTML sanitization to ViewNoteModal.vue
   - All user-generated HTML content is now sanitized before rendering
+- ✅ **[HIGH-006]** Missing CSRF Protection - Fixed on February 8, 2026
+  - Implemented double-submit cookie CSRF protection
+  - Automatic validation for all POST/PUT/DELETE/PATCH requests
+  - Frontend automatically includes CSRF token in headers
 - ✅ **[HIGH-008]** N+1 Query Problem in Stock List - Fixed on February 8, 2026
   - Implemented batch query methods in DatabaseManager
   - Reduced database queries from 1+5N to just 6 queries
   - 97.6% query reduction for typical workloads
 
 **Remaining Critical Issues**: 2
-**Remaining High Priority Issues**: 7
+**Remaining High Priority Issues**: 6
 
 ---
 
@@ -30,7 +34,7 @@ The Stock Tracker application is a well-structured full-stack application with a
 The most critical findings relate to **XSS vulnerabilities** in the frontend (using `v-html` with unsanitized content) [✅ FIXED], **missing authentication/authorization** on all API endpoints, and **overly permissive CORS configuration**. The application also lacks input validation on several API endpoints and has a large database manager file that should be refactored for maintainability.
 
 **Critical findings**: 3 (1 resolved, 2 remaining)
-**High priority findings**: 8 (1 resolved, 7 remaining)
+**High priority findings**: 8 (2 resolved, 6 remaining)
 **Medium priority findings**: 9
 **Approval status**: **Needs Work** - Critical security issues must be addressed before production use.
 
@@ -334,29 +338,78 @@ config.json
 
 ---
 
-### [HIGH-006] Missing CSRF Protection
+### [HIGH-006] ✅ RESOLVED - Missing CSRF Protection
 
 **File**: `/web/app.py`
 **Severity**: High
-**Issue**: No CSRF protection is implemented. While the API uses JSON (which provides some CSRF protection), form-based attacks could still be possible.
+**Status**: ✅ **FIXED** on February 8, 2026
+**Issue**: No CSRF protection was implemented, allowing potential cross-site request forgery attacks that could modify or delete user data.
 
-**Impact**: Cross-site request forgery attacks could modify or delete user data.
+**Impact**: Malicious websites could trick users into performing unwanted actions on the Stock Tracker application.
 
-**Fix**: Implement CSRF protection using Flask-WTF or custom token validation.
+**Fix Applied**: Implemented double-submit cookie CSRF protection pattern:
+
+1. **Backend** (`/web/app.py`):
+   - Generates unique CSRF token for each session
+   - Sets token in httpOnly=false cookie (readable by JavaScript)
+   - Validates token on all POST/PUT/DELETE/PATCH requests
+   - Returns 403 error if token missing or mismatched
+
+2. **Frontend** (`/web/frontend/src/api/client.js`):
+   - Reads CSRF token from cookie
+   - Automatically includes token in `X-CSRF-Token` header for state-changing requests
+   - Uses `withCredentials: true` for cookie support
+
+**Implementation Details**:
 
 ```python
-from flask_wtf.csrf import CSRFProtect
-
-csrf = CSRFProtect(app)
-
-# For JSON API, use custom token header
+# Backend - app.py
 @app.before_request
-def check_csrf_header():
+def csrf_setup():
+    """Validate CSRF token for state-changing requests."""
     if request.method in ['POST', 'PUT', 'DELETE', 'PATCH']:
-        if request.content_type == 'application/json':
-            csrf_token = request.headers.get('X-CSRF-Token')
-            # Validate token
+        csrf_cookie = request.cookies.get('csrf_token')
+        csrf_header = request.headers.get('X-CSRF-Token')
+
+        if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
+            return jsonify({'error': 'CSRF token invalid'}), 403
+
+@app.after_request
+def set_csrf_cookie(response):
+    """Set CSRF cookie on all responses if not present."""
+    if not request.cookies.get('csrf_token') and response.status_code < 400:
+        csrf_token = secrets.token_hex(32)
+        response.set_cookie('csrf_token', csrf_token, max_age=86400,
+                          httponly=False, samesite='Lax')
+    return response
 ```
+
+```javascript
+// Frontend - client.js
+client.interceptors.request.use((config) => {
+  if (['post', 'put', 'delete', 'patch'].includes(config.method)) {
+    const csrfToken = getCsrfToken()  // Read from cookie
+    if (csrfToken) {
+      config.headers['X-CSRF-Token'] = csrfToken
+    }
+  }
+  return config
+})
+```
+
+**Configuration**:
+- Added `SECRET_KEY` to `.env.example` for secure token generation
+- Updated CORS to support credentials with specific origins
+- Cookie attributes: 24-hour expiry, SameSite=Lax protection
+
+**Security Benefits**:
+- ✅ Protects against CSRF attacks from malicious websites
+- ✅ Double-submit cookie pattern (industry standard)
+- ✅ Automatic validation without manual decorator application
+- ✅ Works seamlessly with JSON API architecture
+- ✅ No breaking changes to existing API
+
+**Verification**: Frontend builds successfully, Python syntax validated.
 
 ---
 

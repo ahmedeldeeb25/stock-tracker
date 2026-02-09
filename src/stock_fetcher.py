@@ -138,7 +138,7 @@ class StockFetcher:
             symbol: Stock ticker symbol (e.g., 'AAPL')
 
         Returns:
-            Dictionary with company info (name, sector, industry) or None if failed
+            Dictionary with company info (name, sector, industry, exchange) or None if failed
         """
         try:
             ticker = yf.Ticker(symbol)
@@ -162,14 +162,22 @@ class StockFetcher:
                 logger.warning(f"No company name found for {symbol}")
                 return None
 
+            # Extract exchange - try multiple fields
+            exchange = (
+                info.get('exchange') or
+                info.get('exchangeName') or
+                ''
+            )
+
             # Extract relevant info
             company_info = {
                 'name': company_name,
                 'sector': info.get('sector', ''),
-                'industry': info.get('industry', '')
+                'industry': info.get('industry', ''),
+                'exchange': exchange if exchange else None
             }
 
-            logger.info(f"Fetched info for {symbol}: {company_info['name']}")
+            logger.info(f"Fetched info for {symbol}: {company_info['name']} ({company_info['exchange']})")
             return company_info
 
         except Exception as e:

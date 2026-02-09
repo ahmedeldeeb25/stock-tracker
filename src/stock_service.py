@@ -206,6 +206,7 @@ class StockService:
                 "id": stock.id,
                 "symbol": stock.symbol,
                 "company_name": stock.company_name,
+                "exchange": stock.exchange,
                 "tags": [{"id": t.id, "name": t.name, "color": t.color} for t in tags],
                 "timeframes": [{"id": tf.id, "name": tf.name, "color": tf.color, "description": tf.description} for tf in timeframes],
                 "targets": [self._target_to_dict(t) for t in targets],

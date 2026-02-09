@@ -207,12 +207,18 @@ def fetch_stock_info(stock_id):
         if not company_info or not company_info.get('name'):
             return jsonify({"error": "Could not fetch company information"}), 404
 
-        # Update stock
+        # Update stock with name and exchange
         company_name = company_info['name']
-        current_app.db_manager.update_stock(stock_id, company_name=company_name)
+        exchange = company_info.get('exchange')
+        current_app.db_manager.update_stock(
+            stock_id,
+            company_name=company_name,
+            exchange=exchange
+        )
 
         return jsonify({
             "company_name": company_name,
+            "exchange": exchange,
             "success": True,
             "message": "Company information updated"
         })
@@ -468,4 +474,93 @@ def get_stock_status(stock_id):
 
     except Exception as e:
         logger.error(f"Error fetching stock status {stock_id}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@stocks_bp.route('/batch/update-exchanges', methods=['POST'])
+def batch_update_exchanges():
+    """Batch update exchange information for all stocks missing exchange data.
+
+    This endpoint fetches exchange information from yfinance for all stocks
+    that don't have an exchange set and updates them in the database.
+    """
+    try:
+        # Get all stocks
+        stocks = current_app.db_manager.get_all_stocks()
+
+        if not stocks:
+            return jsonify({
+                "message": "No stocks found",
+                "updated": 0,
+                "skipped": 0,
+                "failed": 0
+            })
+
+        updated = 0
+        skipped = 0
+        failed = 0
+        results = []
+
+        for stock in stocks:
+            # Skip if exchange already set
+            if stock.exchange:
+                logger.debug(f"Skipping {stock.symbol} - exchange already set")
+                skipped += 1
+                continue
+
+            try:
+                # Fetch company info (includes exchange)
+                company_info = current_app.stock_fetcher.get_company_info(stock.symbol)
+
+                if company_info and company_info.get('exchange'):
+                    exchange = company_info['exchange']
+                    company_name = company_info.get('name') or stock.company_name
+
+                    # Update stock
+                    current_app.db_manager.update_stock(
+                        stock.id,
+                        company_name=company_name,
+                        exchange=exchange
+                    )
+
+                    logger.info(f"Updated {stock.symbol}: {exchange}")
+                    updated += 1
+                    results.append({
+                        "symbol": stock.symbol,
+                        "exchange": exchange,
+                        "status": "updated"
+                    })
+                else:
+                    logger.warning(f"Could not fetch exchange for {stock.symbol}")
+                    failed += 1
+                    results.append({
+                        "symbol": stock.symbol,
+                        "status": "failed",
+                        "reason": "No exchange data from yfinance"
+                    })
+
+                # Small delay to avoid rate limiting
+                import time
+                time.sleep(0.5)
+
+            except Exception as e:
+                logger.error(f"Error updating {stock.symbol}: {e}")
+                failed += 1
+                results.append({
+                    "symbol": stock.symbol,
+                    "status": "failed",
+                    "reason": str(e)
+                })
+
+        return jsonify({
+            "message": "Exchange update completed",
+            "total": len(stocks),
+            "updated": updated,
+            "skipped": skipped,
+            "failed": failed,
+            "results": results
+        })
+
+    except Exception as e:
+        logger.error(f"Error in batch exchange update: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500

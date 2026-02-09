@@ -11,6 +11,7 @@ class Stock:
     id: Optional[int] = None
     symbol: str = ""
     company_name: Optional[str] = None
+    exchange: Optional[str] = None  # Exchange where the stock is traded (e.g., 'NYSE', 'NASDAQ')
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

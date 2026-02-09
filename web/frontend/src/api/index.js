@@ -74,6 +74,11 @@ export const stocksApi = {
   // Add note to stock
   addNote(id, data) {
     return client.post(`/stocks/${id}/notes`, data)
+  },
+
+  // Batch update exchanges for all stocks
+  batchUpdateExchanges() {
+    return client.post('/stocks/batch/update-exchanges')
   }
 }
 

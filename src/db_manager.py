@@ -49,11 +49,20 @@ class DatabaseManager:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     symbol VARCHAR(10) NOT NULL UNIQUE,
                     company_name VARCHAR(255),
+                    exchange VARCHAR(50),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_stocks_symbol ON stocks(symbol)")
+
+            # Migration: Add exchange column if it doesn't exist
+            cursor.execute("PRAGMA table_info(stocks)")
+            columns = [column[1] for column in cursor.fetchall()]
+            if 'exchange' not in columns:
+                logger.info("Migrating stocks table: adding exchange column")
+                cursor.execute("ALTER TABLE stocks ADD COLUMN exchange VARCHAR(50)")
+                logger.info("Migration complete: exchange column added")
 
             # Targets table
             cursor.execute("""
@@ -174,12 +183,13 @@ class DatabaseManager:
 
     # ==================== STOCK OPERATIONS ====================
 
-    def create_stock(self, symbol: str, company_name: Optional[str] = None) -> int:
+    def create_stock(self, symbol: str, company_name: Optional[str] = None, exchange: Optional[str] = None) -> int:
         """Create a new stock.
 
         Args:
             symbol: Stock ticker symbol
             company_name: Optional company name
+            exchange: Optional exchange where stock is traded (e.g., 'NYSE', 'NASDAQ')
 
         Returns:
             ID of created stock
@@ -187,8 +197,8 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO stocks (symbol, company_name) VALUES (?, ?)",
-                (symbol.upper(), company_name)
+                "INSERT INTO stocks (symbol, company_name, exchange) VALUES (?, ?, ?)",
+                (symbol.upper(), company_name, exchange)
             )
             return cursor.lastrowid
 
@@ -211,6 +221,7 @@ class DatabaseManager:
                     id=row['id'],
                     symbol=row['symbol'],
                     company_name=row['company_name'],
+                    exchange=row['exchange'] if 'exchange' in row.keys() else None,
                     created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
                     updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None
                 )
@@ -235,6 +246,7 @@ class DatabaseManager:
                     id=row['id'],
                     symbol=row['symbol'],
                     company_name=row['company_name'],
+                    exchange=row['exchange'] if 'exchange' in row.keys() else None,
                     created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
                     updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None
                 )
@@ -288,22 +300,40 @@ class DatabaseManager:
 
             return stocks
 
-    def update_stock(self, stock_id: int, company_name: Optional[str] = None) -> bool:
+    def update_stock(self, stock_id: int, company_name: Optional[str] = None, exchange: Optional[str] = None) -> bool:
         """Update stock information.
 
         Args:
             stock_id: Stock ID
             company_name: New company name
+            exchange: New exchange
 
         Returns:
             True if successful
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE stocks SET company_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (company_name, stock_id)
-            )
+
+            # Build dynamic update query based on provided fields
+            updates = []
+            params = []
+
+            if company_name is not None:
+                updates.append("company_name = ?")
+                params.append(company_name)
+
+            if exchange is not None:
+                updates.append("exchange = ?")
+                params.append(exchange)
+
+            if not updates:
+                return True  # Nothing to update
+
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(stock_id)
+
+            query = f"UPDATE stocks SET {', '.join(updates)} WHERE id = ?"
+            cursor.execute(query, params)
             return cursor.rowcount > 0
 
     def delete_stock(self, stock_id: int) -> bool:
