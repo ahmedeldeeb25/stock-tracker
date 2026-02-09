@@ -76,3 +76,66 @@ def get_batch_prices():
     except Exception as e:
         logger.error(f"Error fetching batch prices: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+
+@prices_bp.route('/fundamental/<symbol>', methods=['GET'])
+def get_fundamental_data(symbol):
+    """Get fundamental data for a symbol."""
+    try:
+        data = current_app.stock_fetcher.get_fundamental_data(symbol.upper())
+
+        if data is None:
+            return jsonify({"error": f"Could not fetch fundamental data for {symbol}"}), 404
+
+        return jsonify(data)
+
+    except Exception as e:
+        logger.error(f"Error fetching fundamental data for {symbol}: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@prices_bp.route('/fundamental/batch', methods=['POST'])
+def get_batch_fundamental_data():
+    """Get fundamental data for multiple symbols.
+
+    Body:
+        {
+            "symbols": ["AMZN", "HIMS", "ZETA"]
+        }
+    """
+    try:
+        data = request.get_json()
+        symbols = data.get('symbols', [])
+
+        if not symbols:
+            return jsonify({"error": "symbols array is required"}), 400
+
+        # Fetch fundamental data in parallel using existing info fetcher
+        info_dict = current_app.stock_fetcher.get_multiple_info(symbols)
+
+        result = {}
+        for symbol in symbols:
+            info = info_dict.get(symbol)
+            if info and isinstance(info, dict):
+                result[symbol] = {
+                    'market_cap': info.get('marketCap'),
+                    'pe_ratio': info.get('trailingPE') or info.get('forwardPE'),
+                    'price_to_book': info.get('priceToBook'),
+                    'beta': info.get('beta'),
+                    'dividend_rate': info.get('dividendRate'),
+                    'dividend_yield': info.get('dividendYield'),
+                    'target_mean_price': info.get('targetMeanPrice'),
+                    'recommendation': info.get('recommendationKey'),
+                    'sector': info.get('sector'),
+                    'industry': info.get('industry'),
+                    'fifty_two_week_high': info.get('fiftyTwoWeekHigh'),
+                    'fifty_two_week_low': info.get('fiftyTwoWeekLow')
+                }
+            else:
+                result[symbol] = None
+
+        return jsonify({"data": result})
+
+    except Exception as e:
+        logger.error(f"Error fetching batch fundamental data: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500

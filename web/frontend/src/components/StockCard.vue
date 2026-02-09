@@ -1,171 +1,121 @@
 <template>
-  <article class="card stock-card h-100">
-    <div class="card-body">
+  <article class="card stock-card h-100" @click="navigateToStock">
+    <div class="card-body p-3">
+      <!-- Header: Symbol, Price, Change -->
       <div class="d-flex justify-content-between align-items-start mb-2">
-        <div class="flex-grow-1 me-2">
-          <h2 class="h5 card-title mb-1">
-            <router-link
-              :to="`/stock/${stock.symbol}`"
-              class="text-decoration-none"
-              :aria-label="`View details for ${stock.symbol}${stock.company_name ? ', ' + stock.company_name : ''}`"
-            >
-              {{ stock.symbol }}
-            </router-link>
-          </h2>
-          <p class="text-muted small mb-2" v-if="stock.company_name">
-            {{ stock.company_name }}
-          </p>
-        </div>
-        <div class="text-end flex-shrink-0">
-          <!-- Regular Market Price -->
-          <div v-if="stock.current_price" class="d-flex align-items-baseline justify-content-end gap-2 mb-1">
-            <span class="h5 mb-0" aria-label="Current price">{{ formatPrice(stock.current_price) }}</span>
+        <div class="stock-info">
+          <div class="d-flex align-items-center gap-2">
+            <h2 class="h6 mb-0 stock-symbol">{{ stock.symbol }}</h2>
             <span
-              v-if="stock.price_change_percent"
-              :class="getPriceChangeClass(stock.price_change_percent)"
-              class="small fw-semibold"
-              :aria-label="`Price change ${stock.price_change_percent >= 0 ? 'up' : 'down'} ${Math.abs(stock.price_change_percent)}%`"
+              v-if="stock.price_change_percent !== undefined"
+              class="badge price-change-badge"
+              :class="stock.price_change_percent >= 0 ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'"
             >
               <i
-                :class="stock.price_change_percent >= 0 ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"
+                :class="stock.price_change_percent >= 0 ? 'bi bi-caret-up-fill' : 'bi bi-caret-down-fill'"
                 aria-hidden="true"
               ></i>
-              {{ stock.price_change_percent >= 0 ? '+' : '' }}{{ formatPercent(stock.price_change_percent) }}
+              {{ formatPercent(stock.price_change_percent) }}
             </span>
           </div>
-
-          <!-- After Hours Price -->
-          <div v-if="stock.after_hours" class="d-flex align-items-baseline justify-content-end gap-2">
-            <small class="text-muted" style="font-size: 0.7rem;">
-              {{ stock.after_hours.is_premarket ? 'Pre-Market:' : 'After Hours:' }}
-            </small>
-            <small class="fw-bold">{{ formatPrice(stock.after_hours.price) }}</small>
-            <small
-              :class="stock.after_hours.change >= 0 ? 'text-success' : 'text-danger'"
-              class="fw-semibold"
-              style="font-size: 0.75rem;"
-            >
-              {{ stock.after_hours.change >= 0 ? '+' : '' }}{{ formatPercent(stock.after_hours.change_percent) }}
+          <p class="text-muted small mb-0 company-name" v-if="stock.company_name">
+            {{ truncate(stock.company_name, 25) }}
+          </p>
+        </div>
+        <div class="text-end">
+          <div class="h6 mb-0 stock-price">{{ formatPrice(stock.current_price) }}</div>
+          <div v-if="stock.after_hours" class="after-hours-price">
+            <small class="text-muted">{{ stock.after_hours.is_premarket ? 'PM' : 'AH' }}:</small>
+            <small :class="stock.after_hours.change >= 0 ? 'text-success' : 'text-danger'">
+              {{ formatPrice(stock.after_hours.price) }}
             </small>
           </div>
         </div>
       </div>
 
-      <!-- Tags -->
-      <div class="mb-2" v-if="stock.tags && stock.tags.length" role="list" aria-label="Stock tags">
+      <!-- Tags & Timeframes (compact) -->
+      <div class="tags-row mb-2" v-if="(stock.tags && stock.tags.length) || (stock.timeframes && stock.timeframes.length)">
         <span
-          v-for="tag in stock.tags"
-          :key="tag.id"
-          class="badge tag-badge me-1"
+          v-for="tag in (stock.tags || []).slice(0, 3)"
+          :key="'tag-' + tag.id"
+          class="badge badge-sm me-1"
           :style="{ backgroundColor: tag.color || '#6c757d' }"
-          role="listitem"
         >
           {{ tag.name }}
         </span>
-      </div>
-
-      <!-- Investment Timeframes -->
-      <div class="mb-2" v-if="stock.timeframes && stock.timeframes.length" role="list" aria-label="Investment timeframes">
         <span
-          v-for="timeframe in stock.timeframes"
-          :key="timeframe.id"
-          class="badge timeframe-badge me-1"
-          :style="{ backgroundColor: timeframe.color || '#6c757d' }"
-          role="listitem"
-          :title="timeframe.description"
+          v-for="tf in (stock.timeframes || []).slice(0, 2)"
+          :key="'tf-' + tf.id"
+          class="badge badge-sm me-1"
+          :style="{ backgroundColor: tf.color || '#6c757d', opacity: 0.8 }"
         >
-          <i class="bi bi-clock me-1" aria-hidden="true"></i>
-          {{ timeframe.name }}
+          <i class="bi bi-clock" aria-hidden="true"></i> {{ tf.name }}
+        </span>
+        <span
+          v-if="(stock.tags?.length || 0) + (stock.timeframes?.length || 0) > 5"
+          class="badge badge-sm bg-secondary"
+        >
+          +{{ (stock.tags?.length || 0) + (stock.timeframes?.length || 0) - 5 }}
         </span>
       </div>
 
-      <!-- Holdings Section -->
-      <div v-if="stock.holding" class="holdings-section mb-3 p-2 rounded bg-light border">
-        <div class="holdings-label text-muted text-uppercase small fw-semibold mb-1" style="letter-spacing: 0.5px;">
-          Holdings
-        </div>
-        <div class="holdings-content">
-          <div class="shares-line">
+      <!-- Holdings (compact) -->
+      <div v-if="stock.holding" class="holdings-compact mb-2">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="text-muted small">
+            <i class="bi bi-wallet2 me-1"></i>
             {{ formatNumber(stock.holding.shares) }} shares
-            <span v-if="stock.holding.average_cost" class="text-muted">
-              @ {{ formatPrice(stock.holding.average_cost) }} avg
-            </span>
-          </div>
-          <div class="value-line fw-medium" v-if="stock.holding.position_value">
-            Value: {{ formatPrice(stock.holding.position_value) }}
-          </div>
-          <div
-            v-if="stock.holding.gain_loss !== undefined && stock.holding.gain_loss !== null"
-            class="gain-loss-line"
-            :class="getGainLossClass(stock.holding.gain_loss)"
-          >
-            <i
-              :class="stock.holding.gain_loss >= 0 ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"
-              aria-hidden="true"
-            ></i>
-            {{ stock.holding.gain_loss >= 0 ? 'Gain' : 'Loss' }}:
+          </span>
+          <span v-if="stock.holding.gain_loss !== undefined" class="small fw-medium" :class="getGainLossClass(stock.holding.gain_loss)">
             {{ formatGainLoss(stock.holding.gain_loss) }}
-            ({{ formatPercent(stock.holding.gain_loss_percent) }})
-          </div>
+            <span class="text-muted">({{ formatPercent(stock.holding.gain_loss_percent) }})</span>
+          </span>
+          <span v-else-if="stock.holding.position_value" class="small fw-medium">
+            {{ formatPrice(stock.holding.position_value) }}
+          </span>
         </div>
       </div>
 
-      <!-- Targets -->
-      <div class="mt-3" v-if="filteredTargets.length">
-        <h3 class="visually-hidden">Price Targets</h3>
+      <!-- Key Targets (compact - show closest buy/sell) -->
+      <div class="targets-compact" v-if="keyTargets.length">
         <div
-          v-for="target in filteredTargets"
+          v-for="target in keyTargets"
           :key="target.id"
-          class="d-flex justify-content-between align-items-center mb-2 p-2 rounded"
-          :class="{ 'alert-triggered bg-light': target.is_triggered }"
+          class="target-row d-flex justify-content-between align-items-center"
         >
-          <div>
+          <div class="d-flex align-items-center gap-1">
             <span
-              class="badge target-badge me-2"
-              :class="getTargetBadgeClass(target.target_type)"
-            >
-              {{ target.target_type }}
-              <span v-if="target.trim_percentage"> ({{ target.trim_percentage }}%)</span>
-            </span>
-            <span class="text-muted">@ {{ formatPrice(target.target_price) }}</span>
+              class="target-dot"
+              :class="target.target_type === 'Buy' ? 'bg-success' : 'bg-danger'"
+            ></span>
+            <span class="small text-muted">{{ target.target_type }}</span>
+            <span class="small">{{ formatPrice(target.target_price) }}</span>
           </div>
-          <div class="text-end">
-            <i
-              v-if="target.is_triggered"
-              class="bi bi-bell-fill text-warning"
-              aria-label="Alert triggered"
-            ></i>
-            <small :class="getPriceChangeClass(target.difference_percent)">
-              {{ target.difference_percent ? formatPercent(target.difference_percent) : '' }}
-            </small>
-          </div>
+          <span class="small" :class="getPriceChangeClass(target.difference_percent)">
+            {{ formatPercent(target.difference_percent) }}
+          </span>
         </div>
       </div>
 
-      <!-- Notes count -->
-      <div class="mt-3 text-muted small" v-if="stock.notes_count">
-        <i class="bi bi-journal-text me-1" aria-hidden="true"></i>
-        {{ stock.notes_count }} {{ stock.notes_count === 1 ? 'note' : 'notes' }}
-      </div>
-    </div>
-
-    <div class="card-footer bg-transparent">
-      <div class="d-flex justify-content-between gap-2">
-        <router-link
-          :to="`/stock/${stock.symbol}`"
-          class="btn btn-sm btn-outline-primary flex-grow-1"
-          :aria-label="`View ${stock.symbol} details`"
-        >
-          <i class="bi bi-eye me-1" aria-hidden="true"></i>
-          Details
-        </router-link>
-        <button
-          @click="$emit('delete', stock.id)"
-          class="btn btn-sm btn-outline-danger"
-          :aria-label="`Delete ${stock.symbol} from portfolio`"
-        >
-          <i class="bi bi-trash" aria-hidden="true"></i>
-        </button>
+      <!-- Bottom row: Notes indicator & Quick actions -->
+      <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+        <div class="meta-info small text-muted">
+          <span v-if="stock.notes_count" class="me-2">
+            <i class="bi bi-journal-text"></i> {{ stock.notes_count }}
+          </span>
+          <span v-if="stock.targets?.length">
+            <i class="bi bi-crosshair"></i> {{ stock.targets.length }}
+          </span>
+        </div>
+        <div class="quick-actions" @click.stop>
+          <button
+            class="btn btn-sm btn-link text-danger p-0"
+            @click="$emit('delete', stock.id)"
+            title="Delete stock"
+          >
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
       </div>
     </div>
   </article>
@@ -173,6 +123,7 @@
 
 <script>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { formatPrice, formatPercent, formatNumber, formatGainLoss, getPriceChangeClass, getTargetBadgeClass, getGainLossClass } from '@/utils/formatters'
 
 export default {
@@ -185,15 +136,45 @@ export default {
   },
   emits: ['delete'],
   setup(props) {
-    const filteredTargets = computed(() => {
-      if (!props.stock.targets) return []
-      return props.stock.targets.filter(target =>
-        target.target_type === 'Buy' || target.target_type === 'Sell'
-      )
+    const router = useRouter()
+
+    // Get the most relevant targets (closest buy below, closest sell above)
+    const keyTargets = computed(() => {
+      if (!props.stock.targets || !props.stock.current_price) return []
+
+      const currentPrice = props.stock.current_price
+      const activeTargets = props.stock.targets.filter(t => t.is_active)
+
+      // Find closest buy target (below current price)
+      const buyTargets = activeTargets
+        .filter(t => t.target_type === 'Buy' && t.target_price < currentPrice)
+        .sort((a, b) => b.target_price - a.target_price)
+
+      // Find closest sell target (above current price)
+      const sellTargets = activeTargets
+        .filter(t => t.target_type === 'Sell' && t.target_price > currentPrice)
+        .sort((a, b) => a.target_price - b.target_price)
+
+      const result = []
+      if (buyTargets.length) result.push(buyTargets[0])
+      if (sellTargets.length) result.push(sellTargets[0])
+
+      return result.slice(0, 2)
     })
 
+    const truncate = (str, length) => {
+      if (!str) return ''
+      return str.length > length ? str.substring(0, length) + '...' : str
+    }
+
+    const navigateToStock = () => {
+      router.push(`/stock/${props.stock.symbol}`)
+    }
+
     return {
-      filteredTargets,
+      keyTargets,
+      truncate,
+      navigateToStock,
       formatPrice,
       formatPercent,
       formatNumber,
@@ -205,3 +186,96 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.stock-card {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid #e9ecef;
+}
+
+.stock-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: #dee2e6;
+}
+
+.stock-symbol {
+  font-weight: 700;
+  color: #212529;
+}
+
+.company-name {
+  font-size: 0.75rem;
+  line-height: 1.2;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-price {
+  font-weight: 600;
+}
+
+.price-change-badge {
+  font-size: 0.7rem;
+  padding: 0.2em 0.4em;
+  font-weight: 600;
+}
+
+.after-hours-price {
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+
+.badge-sm {
+  font-size: 0.65rem;
+  padding: 0.2em 0.45em;
+  font-weight: 500;
+}
+
+.holdings-compact {
+  background: #f8f9fa;
+  border-radius: 0.375rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.targets-compact {
+  font-size: 0.8rem;
+}
+
+.target-row {
+  padding: 0.2rem 0;
+}
+
+.target-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.meta-info {
+  font-size: 0.75rem;
+}
+
+.quick-actions .btn {
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.stock-card:hover .quick-actions .btn {
+  opacity: 1;
+}
+
+/* Bootstrap 5.3+ subtle backgrounds fallback */
+.bg-success-subtle {
+  background-color: rgba(25, 135, 84, 0.1) !important;
+}
+
+.bg-danger-subtle {
+  background-color: rgba(220, 53, 69, 0.1) !important;
+}
+</style>

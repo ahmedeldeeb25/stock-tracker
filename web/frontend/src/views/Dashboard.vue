@@ -97,8 +97,8 @@
 
     <!-- Loading State -->
     <div v-if="loading" role="status" aria-live="polite">
-      <div class="row g-4">
-        <div v-for="n in 6" :key="`skeleton-${n}`" class="col-12 col-md-6 col-lg-4">
+      <div class="row g-3">
+        <div v-for="n in 8" :key="`skeleton-${n}`" class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-3">
           <StockCardSkeleton />
         </div>
       </div>
@@ -111,8 +111,8 @@
     </div>
 
     <!-- Stocks Grid -->
-    <div v-else-if="filteredStocks.length" class="row g-4">
-      <div v-for="stock in filteredStocks" :key="stock.id" class="col-12 col-md-6 col-lg-4">
+    <div v-else-if="filteredStocks.length" class="row g-3">
+      <div v-for="stock in filteredStocks" :key="stock.id" class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-3">
         <StockCard :stock="stock" @delete="handleDelete" />
       </div>
     </div>

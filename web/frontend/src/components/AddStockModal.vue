@@ -132,6 +132,66 @@
               </div>
             </div>
 
+            <!-- Holdings (Optional) -->
+            <div class="mb-3">
+              <div class="form-check mb-2">
+                <input
+                  id="hasHolding"
+                  type="checkbox"
+                  class="form-check-input"
+                  v-model="formData.hasHolding"
+                >
+                <label for="hasHolding" class="form-check-label">
+                  <i class="bi bi-briefcase me-1"></i>
+                  I own shares of this stock
+                </label>
+              </div>
+
+              <div v-if="formData.hasHolding" class="card bg-light">
+                <div class="card-body">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label for="holdingShares" class="form-label">
+                        Shares Owned <span class="text-danger">*</span>
+                      </label>
+                      <input
+                        id="holdingShares"
+                        type="number"
+                        step="0.0001"
+                        min="0"
+                        class="form-control"
+                        v-model.number="formData.shares"
+                        placeholder="Number of shares"
+                        :required="formData.hasHolding"
+                      >
+                    </div>
+                    <div class="col-md-6">
+                      <label for="holdingAvgCost" class="form-label">
+                        Average Cost <span class="text-danger">*</span>
+                      </label>
+                      <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input
+                          id="holdingAvgCost"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          class="form-control"
+                          v-model.number="formData.averageCost"
+                          placeholder="Avg cost per share"
+                          :required="formData.hasHolding"
+                        >
+                      </div>
+                    </div>
+                  </div>
+                  <div class="mt-2 text-muted small" v-if="formData.shares && formData.averageCost">
+                    <i class="bi bi-calculator me-1"></i>
+                    Total Cost Basis: <strong>${{ (formData.shares * formData.averageCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Targets -->
             <div class="mb-3">
               <label class="form-label">
@@ -250,7 +310,10 @@ export default {
       symbol: '',
       company_name: '',
       tags: [],
-      targets: []
+      targets: [],
+      hasHolding: false,
+      shares: null,
+      averageCost: null
     })
 
     const newTag = ref('')
@@ -406,7 +469,10 @@ export default {
         symbol: '',
         company_name: '',
         tags: [],
-        targets: []
+        targets: [],
+        hasHolding: false,
+        shares: null,
+        averageCost: null
       }
       errorMessage.value = ''
       symbolError.value = ''
@@ -430,6 +496,18 @@ export default {
         return
       }
 
+      // Validate holding data if enabled
+      if (formData.value.hasHolding) {
+        if (!formData.value.shares || formData.value.shares <= 0) {
+          errorMessage.value = 'Please enter valid number of shares'
+          return
+        }
+        if (!formData.value.averageCost || formData.value.averageCost <= 0) {
+          errorMessage.value = 'Please enter valid average cost'
+          return
+        }
+      }
+
       submitting.value = true
       errorMessage.value = ''
 
@@ -437,10 +515,18 @@ export default {
         // Filter to only include targets with prices
         const validTargets = formData.value.targets.filter(t => t.target_price)
 
+        // Prepare holding data if enabled
+        const holdingData = formData.value.hasHolding ? {
+          shares: formData.value.shares,
+          average_cost: formData.value.averageCost
+        } : null
+
         await stocksStore.createStock({
-          ...formData.value,
           symbol: formData.value.symbol.toUpperCase(),
-          targets: validTargets
+          company_name: formData.value.company_name,
+          tags: formData.value.tags,
+          targets: validTargets,
+          holding: holdingData
         })
 
         // Save symbol before resetting form

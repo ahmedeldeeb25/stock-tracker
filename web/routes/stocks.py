@@ -167,7 +167,7 @@ def get_stock(symbol):
 
 @stocks_bp.route('', methods=['POST'])
 def create_stock():
-    """Create a new stock with targets and tags.
+    """Create a new stock with targets, tags, and optional holding.
 
     Body:
         {
@@ -181,7 +181,11 @@ def create_stock():
                     "trim_percentage": null
                 }
             ],
-            "tags": ["tech", "AI"]
+            "tags": ["tech", "AI"],
+            "holding": {
+                "shares": 100,
+                "average_cost": 750.50
+            }
         }
     """
     try:
@@ -196,6 +200,20 @@ def create_stock():
             targets=data.get('targets', []),
             tags=data.get('tags', [])
         )
+
+        # Add holding if provided
+        holding_data = data.get('holding')
+        if holding_data and holding_data.get('shares'):
+            shares = holding_data.get('shares')
+            average_cost = holding_data.get('average_cost')
+
+            if shares > 0:
+                current_app.db_manager.create_or_update_holding(
+                    stock_id=result['id'],
+                    shares=shares,
+                    average_cost=average_cost
+                )
+                logger.info(f"Created holding for {data['symbol']}: {shares} shares @ ${average_cost}")
 
         # Fetch full details to return
         stock = current_app.stock_service.get_stock_with_details(data['symbol'])

@@ -182,6 +182,16 @@ export const pricesApi = {
   // Get market overview (indices, VIX, fear/greed)
   getMarketOverview() {
     return client.get('/prices/market-overview')
+  },
+
+  // Get fundamental data for a single symbol
+  getFundamental(symbol) {
+    return client.get(`/prices/fundamental/${symbol}`)
+  },
+
+  // Get fundamental data for multiple symbols
+  getBatchFundamental(symbols) {
+    return client.post('/prices/fundamental/batch', { symbols })
   }
 }
 
